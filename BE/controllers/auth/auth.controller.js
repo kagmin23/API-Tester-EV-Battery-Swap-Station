@@ -1,0 +1,258 @@
+const User = require('../../models/auth/auth.model');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { z, ZodError } = require('zod');
+const { sendEmail } = require('../../utils/mailer');
+require('dotenv').config();
+
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+// Config thời gian sống token
+const ACCESS_TOKEN_EXPIRES = process.env.JWT_ACCESS_EXPIRES || '15m'; // ví dụ: 15p
+const REFRESH_TOKEN_EXPIRES_DAYS = parseInt(process.env.JWT_REFRESH_EXPIRES_DAYS || '7', 10); // 7 ngày
+
+const signAccessToken = (user) => {
+  return jwt.sign(
+    { id: user._id, email: user.email },
+    process.env.JWT_SECRET,
+    { expiresIn: ACCESS_TOKEN_EXPIRES }
+  );
+};
+
+const generateRefreshTokenValue = () => crypto.randomBytes(48).toString('hex');
+
+const login = async (req, res) => {
+  try {
+    const data = loginSchema.parse(req.body);
+
+    const user = await User.findOne({ email: data.email });
+    if (!user) return res.status(400).json({ message: 'Incorrect account or password' });
+
+    if (!user.isVerified) {
+      return res.status(403).json({
+        message: 'Account not verified. Please enter the OTP code sent to your email to activate before logging in.',
+        requireEmailVerification: true,
+        nextActions: {
+          verifyEndpoint: '/api/auth/verify-email',
+          resendOtpEndpoint: '/api/auth/resend-otp'
+        }
+      });
+    }
+
+    const isMatch = await user.comparePassword(data.password);
+    if (!isMatch) return res.status(400).json({ message: 'Incorrect account or password' });
+
+    const accessToken = signAccessToken(user);
+    const refreshToken = generateRefreshTokenValue();
+    const refreshExpires = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+    user.refreshToken = refreshToken;
+    user.refreshTokenExpiresAt = refreshExpires;
+    await user.save();
+
+    res.status(200).json({
+      accessToken,
+      refreshToken,
+      expiresIn: ACCESS_TOKEN_EXPIRES,
+      user: { id: user._id, email: user.email, fullName: user.fullName, phoneNumber: user.phoneNumber }
+    });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+const registerSchema = z
+  .object({
+    email: z.string().email(),
+    password: z.string().min(6),
+    confirmPassword: z.string().min(6),
+    fullName: z.string().min(2).max(100),
+    phoneNumber: z
+      .string()
+      .regex(/^0\d{9}$/,{ message: 'Phone number must be 10 digits' }),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+const register = async (req, res) => {
+  try {
+    const data = registerSchema.parse(req.body);
+
+    const exists = await User.findOne({ email: data.email });
+    if (exists) return res.status(409).json({ message: 'Email already in use' });
+
+  // Tạo OTP 6 chữ số và hash
+  const OTP_EXPIRES_MINUTES = parseInt(process.env.OTP_EXPIRES_MINUTES || '10', 10);
+  const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
+  const otpExpires = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
+
+    const user = new User({
+      email: data.email,
+      password: data.password,
+      fullName: data.fullName,
+      phoneNumber: data.phoneNumber,
+      isVerified: false,
+      emailOTP: otpHash,
+      emailOTPExpires: otpExpires,
+      emailOTPLastSentAt: new Date(),
+      emailOTPResendCount: 0,
+      emailOTPResendWindowStart: new Date(),
+    });
+    await user.save();
+
+    // Gửi email OTP
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Your verification code',
+        text: `Your verification code is ${rawOtp}. It will expire in ${OTP_EXPIRES_MINUTES} minutes.`
+      });
+    } catch (mailErr) {
+      console.error('Failed to send OTP email:', mailErr.message);
+    }
+
+    res.status(201).json({ message: 'Registered successfully. Please verify your email with the OTP sent.', userId: user._id });
+  } catch (err) {
+    if (err instanceof ZodError) {
+      const first = err.errors?.[0];
+      return res.status(400).json({ message: first?.message || 'Invalid input', issues: err.errors });
+    }
+    res.status(400).json({ message: err.message });
+  }
+};
+
+const refresh = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(400).json({ message: 'refreshToken is required' });
+
+    const user = await User.findOne({ refreshToken });
+    if (!user) return res.status(401).json({ message: 'Invalid refresh token' });
+
+    if (!user.refreshTokenExpiresAt || user.refreshTokenExpiresAt < new Date()) {
+      user.refreshToken = null;
+      user.refreshTokenExpiresAt = null;
+      await user.save();
+      return res.status(401).json({ message: 'Refresh token expired. Please login again.' });
+    }
+
+    const newRefreshToken = generateRefreshTokenValue();
+    const newRefreshExpires = new Date(Date.now() + REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60 * 1000);
+    user.refreshToken = newRefreshToken;
+    user.refreshTokenExpiresAt = newRefreshExpires;
+    const accessToken = signAccessToken(user);
+    await user.save();
+
+    res.status(200).json({
+      accessToken,
+      refreshToken: newRefreshToken,
+      expiresIn: ACCESS_TOKEN_EXPIRES,
+      user: { id: user._id, email: user.email, fullName: user.fullName, phoneNumber: user.phoneNumber }
+    });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+const logout = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(400).json({ message: 'refreshToken is required' });
+    const user = await User.findOne({ refreshToken });
+    if (user) {
+      user.refreshToken = null;
+      user.refreshTokenExpiresAt = null;
+      await user.save();
+    }
+    res.status(200).json({ message: 'Logged out successfully' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// Verify email OTP
+const verifyEmail = async (req, res) => {
+  try {
+    const { userId, otp } = req.body;
+    if (!userId || !otp) return res.status(400).json({ message: 'userId and otp are required' });
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.isVerified) return res.status(200).json({ message: 'Already verified' });
+    if (!user.emailOTP || !user.emailOTPExpires) return res.status(400).json({ message: 'No OTP pending' });
+    if (user.emailOTPExpires < new Date()) return res.status(400).json({ message: 'OTP expired' });
+    const providedHash = crypto.createHash('sha256').update(otp).digest('hex');
+    if (user.emailOTP !== providedHash) return res.status(400).json({ message: 'Invalid OTP' });
+    user.isVerified = true;
+    user.emailOTP = null;
+    user.emailOTPExpires = null;
+    user.emailOTPLastSentAt = null;
+    user.emailOTPResendCount = 0;
+    user.emailOTPResendWindowStart = null;
+    await user.save();
+    res.status(200).json({ message: 'Email verified. You can now login.' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// Resend OTP
+const resendOtp = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'email is required' });
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.isVerified) return res.status(200).json({ message: 'Already verified' });
+    const minIntervalMs = parseInt(process.env.OTP_RESEND_MIN_INTERVAL_MS || '60000', 10); // default 60s
+    const windowHours = parseInt(process.env.OTP_RESEND_WINDOW_HOURS || '24', 10); // default 24h window
+    const windowMax = parseInt(process.env.OTP_RESEND_WINDOW_MAX || '5', 10); // default 5 resend / window
+
+    const now = new Date();
+    // Reset window if needed
+    if (!user.emailOTPResendWindowStart || (now - user.emailOTPResendWindowStart) > windowHours * 60 * 60 * 1000) {
+      user.emailOTPResendWindowStart = now;
+      user.emailOTPResendCount = 0;
+    }
+
+    // Check count
+    if (user.emailOTPResendCount >= windowMax) {
+      return res.status(429).json({ message: 'Resend OTP limit reached. Please try later.' });
+    }
+
+    // Check interval
+    if (user.emailOTPLastSentAt && (now - user.emailOTPLastSentAt) < minIntervalMs) {
+      const waitMs = minIntervalMs - (now - user.emailOTPLastSentAt);
+      return res.status(429).json({ message: `Please wait ${Math.ceil(waitMs/1000)}s before requesting another OTP.` });
+    }
+
+    const OTP_EXPIRES_MINUTES = parseInt(process.env.OTP_EXPIRES_MINUTES || '10', 10);
+    const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
+    user.emailOTP = otpHash;
+    user.emailOTPExpires = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
+    user.emailOTPLastSentAt = now;
+    user.emailOTPResendCount += 1;
+    await user.save();
+
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Your verification code (resend)',
+        text: `Your verification code is ${rawOtp}. It will expire in ${OTP_EXPIRES_MINUTES} minutes.`
+      });
+    } catch (mailErr) {
+      console.error('Failed to resend OTP email:', mailErr.message);
+    }
+
+    res.status(200).json({ message: 'OTP resent.' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+module.exports = { login, register, refresh, logout, verifyEmail, resendOtp };
