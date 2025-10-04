@@ -20,6 +20,11 @@ const userSchema = new mongoose.Schema({
   emailOTPLastSentAt: { type: Date, default: null },
   emailOTPResendCount: { type: Number, default: 0 },
   emailOTPResendWindowStart: { type: Date, default: null },
+  passwordResetOTP: { type: String, default: null },
+  passwordResetOTPExpires: { type: Date, default: null },
+  passwordResetOTPLastSentAt: { type: Date, default: null },
+  passwordResetOTPResendCount: { type: Number, default: 0 },
+  passwordResetOTPResendWindowStart: { type: Date, default: null },
 }, { timestamps: true });
 
 // Hash password trước khi lưu

@@ -255,4 +255,155 @@ const resendOtp = async (req, res) => {
   }
 };
 
-module.exports = { login, register, refresh, logout, verifyEmail, resendOtp };
+// Forgot password - send reset OTP
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'email is required' });
+    
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    const minIntervalMs = parseInt(process.env.PASSWORD_RESET_MIN_INTERVAL_MS || '60000', 10); // 60s
+    const windowHours = parseInt(process.env.PASSWORD_RESET_WINDOW_HOURS || '24', 10); // 24h
+    const windowMax = parseInt(process.env.PASSWORD_RESET_WINDOW_MAX || '3', 10); // 3 times/24h
+
+    const now = new Date();
+    // Reset window if needed
+    if (!user.passwordResetOTPResendWindowStart || (now - user.passwordResetOTPResendWindowStart) > windowHours * 60 * 60 * 1000) {
+      user.passwordResetOTPResendWindowStart = now;
+      user.passwordResetOTPResendCount = 0;
+    }
+
+    // Check count limit
+    if (user.passwordResetOTPResendCount >= windowMax) {
+      return res.status(429).json({ message: 'Password reset limit reached. Please try later.' });
+    }
+
+    // Check interval
+    if (user.passwordResetOTPLastSentAt && (now - user.passwordResetOTPLastSentAt) < minIntervalMs) {
+      const waitMs = minIntervalMs - (now - user.passwordResetOTPLastSentAt);
+      return res.status(429).json({ message: `Please wait ${Math.ceil(waitMs/1000)}s before requesting another reset.` });
+    }
+
+    const OTP_EXPIRES_MINUTES = parseInt(process.env.PASSWORD_RESET_OTP_EXPIRES_MINUTES || '15', 10);
+    const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
+    
+    user.passwordResetOTP = otpHash;
+    user.passwordResetOTPExpires = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
+    user.passwordResetOTPLastSentAt = now;
+    user.passwordResetOTPResendCount += 1;
+    await user.save();
+
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: 'Password Reset Code',
+        text: `Your password reset code is ${rawOtp}. It will expire in ${OTP_EXPIRES_MINUTES} minutes.`
+      });
+    } catch (mailErr) {
+      console.error('Failed to send password reset email:', mailErr.message);
+    }
+
+    res.status(200).json({ message: 'Password reset code sent to your email.' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// Reset password with OTP
+const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: 'email, otp, and newPassword are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    if (!user.passwordResetOTP || !user.passwordResetOTPExpires) {
+      return res.status(400).json({ message: 'No password reset request pending' });
+    }
+    
+    if (user.passwordResetOTPExpires < new Date()) {
+      return res.status(400).json({ message: 'Password reset code expired' });
+    }
+    
+    const providedHash = crypto.createHash('sha256').update(otp).digest('hex');
+    if (user.passwordResetOTP !== providedHash) {
+      return res.status(400).json({ message: 'Invalid reset code' });
+    }
+
+    // Reset password and clear reset fields
+    user.password = newPassword; // Will be hashed by pre-save middleware
+    user.passwordResetOTP = null;
+    user.passwordResetOTPExpires = null;
+    user.passwordResetOTPLastSentAt = null;
+    user.passwordResetOTPResendCount = 0;
+    user.passwordResetOTPResendWindowStart = null;
+    
+    // Also invalidate refresh tokens for security
+    user.refreshToken = null;
+    user.refreshTokenExpiresAt = null;
+    
+    await user.save();
+
+    res.status(200).json({ message: 'Password reset successfully. Please login with your new password.' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+// Change password (requires authentication)
+const changePassword = async (req, res) => {
+  try {
+    const { oldPassword, newPassword, confirmNewPassword } = req.body;
+    
+    if (!oldPassword || !newPassword || !confirmNewPassword) {
+      return res.status(400).json({ message: 'oldPassword, newPassword, and confirmNewPassword are required' });
+    }
+    
+    if (newPassword !== confirmNewPassword) {
+      return res.status(400).json({ message: 'New passwords do not match' });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+    }
+    
+    // Get user from token (set by auth middleware)
+    const userId = req.user.id;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    // Verify old password
+    const isOldPasswordValid = await user.comparePassword(oldPassword);
+    if (!isOldPasswordValid) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+    
+    // Check if new password is different from old password
+    const isSamePassword = await user.comparePassword(newPassword);
+    if (isSamePassword) {
+      return res.status(400).json({ message: 'New password must be different from current password' });
+    }
+    
+    // Update password and invalidate refresh tokens for security
+    user.password = newPassword; // Will be hashed by pre-save middleware
+    user.refreshToken = null;
+    user.refreshTokenExpiresAt = null;
+    
+    await user.save();
+    
+    res.status(200).json({ message: 'Password changed successfully. Please login again with your new password.' });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+};
+
+module.exports = { login, register, refresh, logout, verifyEmail, resendOtp, forgotPassword, resetPassword, changePassword };
