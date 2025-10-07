@@ -143,7 +143,6 @@ const register = async (req, res) => {
     });
     await user.save();
 
-    // Gửi email OTP
     try {
       await sendEmail({
         to: user.email,
