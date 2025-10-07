@@ -129,7 +129,7 @@ const register = async (req, res) => {
 const refresh = async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    if (!refreshToken) return res.status(400).json({ message: 'refreshToken is required' });
+    if (!refreshToken) return res.status(400).json({ message: 'RefreshToken is required' });
 
     const user = await User.findOne({ refreshToken });
     if (!user) return res.status(401).json({ message: 'Invalid refresh token' });
@@ -162,7 +162,7 @@ const refresh = async (req, res) => {
 const logout = async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    if (!refreshToken) return res.status(400).json({ message: 'refreshToken is required' });
+    if (!refreshToken) return res.status(400).json({ message: 'RefreshToken is required' });
     const user = await User.findOne({ refreshToken });
     if (user) {
       user.refreshToken = null;
@@ -175,11 +175,10 @@ const logout = async (req, res) => {
   }
 };
 
-// Verify email OTP
 const verifyEmail = async (req, res) => {
   try {
     const { userId, otp } = req.body;
-    if (!userId || !otp) return res.status(400).json({ message: 'userId and otp are required' });
+    if (!userId || !otp) return res.status(400).json({ message: 'userId and OTP are required' });
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (user.isVerified) return res.status(200).json({ message: 'Already verified' });
@@ -204,7 +203,7 @@ const verifyEmail = async (req, res) => {
 const resendOtp = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) return res.status(400).json({ message: 'email is required' });
+    if (!email) return res.status(400).json({ message: 'Email is required' });
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (user.isVerified) return res.status(200).json({ message: 'Already verified' });
