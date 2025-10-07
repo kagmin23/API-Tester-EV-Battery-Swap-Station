@@ -82,7 +82,7 @@ const login = async (req, res) => {
           phoneNumber: user.phoneNumber,
         },
       },
-      message: "Login successful",
+      message: "Login successfully",
     });
   } catch (err) {
     res.status(400).json({
