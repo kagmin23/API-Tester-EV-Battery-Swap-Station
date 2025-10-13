@@ -19,6 +19,14 @@ const userSchema = new mongoose.Schema(
       trim: true,
       match: [/^0\d{9}$/, "Phone number must be 10 digits and start with 0"],
     },
+    // Role-based access control
+    role: {
+      type: String,
+      enum: ["admin", "driver", "staff"],
+      default: "driver", // Assumption: users registering are drivers by default
+      required: true,
+      index: true,
+    },
     refreshToken: { type: String, default: null },
     refreshTokenExpiresAt: { type: Date, default: null },
     isVerified: { type: Boolean, default: false },

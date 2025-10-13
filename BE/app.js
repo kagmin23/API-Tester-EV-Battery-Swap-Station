@@ -8,6 +8,14 @@ const cors = require("cors"); // thêm cors
 const User = require("./models/auth/auth.model")
 const connectDB = require("./config/db.config");
 const authRoutes = require("./routes/auth/auth.route");
+const vehicleRoutes = require("./routes/vehicle/vehicle.route");
+const userRoutes = require("./routes/user/user.route");
+const stationRoutes = require("./routes/station/station.route");
+const bookingRoutes = require("./routes/booking/booking.route");
+const supportRoutes = require("./routes/support/support.route");
+const staffRoutes = require("./routes/staff/staff.route");
+const adminRoutes = require("./routes/admin/admin.route");
+const paymentRoutes = require("./routes/payment/payment.route");
 var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
 
@@ -29,6 +37,14 @@ app.set("view engine", "jade");
 app.use("/", indexRouter);
 app.use("/users", usersRouter);
 app.use("/api/auth", authRoutes);
+app.use("/api/vehicles", vehicleRoutes);
+app.use("/api/users", userRoutes);
+app.use("/api/stations", stationRoutes);
+app.use("/api/booking", bookingRoutes);
+app.use("/api/support", supportRoutes);
+app.use("/api/staff", staffRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

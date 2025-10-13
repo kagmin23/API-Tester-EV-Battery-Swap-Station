@@ -1,0 +1,135 @@
+const Station = require("../../models/station/station.model");
+const StationRating = require("../../models/rating/stationRating.model");
+const Battery = require("../../models/battery/battery.model");
+const { z, ZodError } = require("zod");
+
+// Since location is removed, allow filtering by city/district and order by availability
+const nearbySchema = z.object({
+  city: z.string().optional(),
+  district: z.string().optional(),
+  limit: z.coerce.number().optional().default(50),
+});
+
+const listNearbyStations = async (req, res) => {
+  try {
+    const { city, district, limit } = nearbySchema.parse(req.query);
+    const filter = {};
+    if (city) filter.city = city;
+    if (district) filter.district = district;
+    const stations = await Station.find(filter)
+      .sort({ availableBatteries: -1 })
+      .limit(limit);
+    return res.status(200).json({ success: true, data: stations });
+  } catch (err) {
+    if (err instanceof ZodError) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: err.errors?.[0]?.message || "Invalid query",
+        });
+    }
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+const getStationDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const station = await Station.findById(id);
+    if (!station)
+      return res
+        .status(404)
+        .json({ success: false, message: "Station not found" });
+    const batteries = await Battery.find({
+      station: station._id,
+      status: { $ne: "faulty" },
+    })
+      .select("soh status")
+      .limit(500);
+    const ratingAgg = await StationRating.aggregate([
+      { $match: { station: station._id } },
+      {
+        $group: {
+          _id: "$station",
+          avgScore: { $avg: "$rating" },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+    const rating = ratingAgg[0] || { avgScore: null, count: 0 };
+    return res
+      .status(200)
+      .json({
+        success: true,
+        data: {
+          station,
+          sohAvg: station.sohAvg,
+          available: station.availableBatteries,
+          batteries,
+          rating,
+        },
+      });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+const ratingSchema = z.object({
+  rating: z.number().min(1).max(5),
+  comment: z.string().optional(),
+});
+
+const postStationRating = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = ratingSchema.parse(req.body);
+    const station = await Station.findById(id);
+    if (!station)
+      return res
+        .status(404)
+        .json({ success: false, message: "Station not found" });
+    const rating = await StationRating.findOneAndUpdate(
+      { station: station._id, user: req.user.id },
+      { $set: { rating: body.rating, comment: body.comment } },
+      { upsert: true, new: true }
+    );
+    return res
+      .status(201)
+      .json({ success: true, data: rating, message: "Rating submitted" });
+  } catch (err) {
+    if (err instanceof ZodError) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: err.errors?.[0]?.message || "Invalid input",
+        });
+    }
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+const listStationRatings = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const station = await Station.findById(id);
+    if (!station)
+      return res
+        .status(404)
+        .json({ success: false, message: "Station not found" });
+    const ratings = await StationRating.find({ station: station._id })
+      .sort({ createdAt: -1 })
+      .limit(200);
+    return res.status(200).json({ success: true, data: ratings });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = {
+  listNearbyStations,
+  getStationDetail,
+  postStationRating,
+  listStationRatings,
+};
