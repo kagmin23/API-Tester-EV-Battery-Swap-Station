@@ -7,6 +7,8 @@ require("dotenv").config();
 const cors = require("cors"); // thêm cors
 const User = require("./models/auth/auth.model")
 const connectDB = require("./config/db.config");
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpecs = require("./config/swagger");
 const authRoutes = require("./routes/auth/auth.route");
 const vehicleRoutes = require("./routes/vehicle/vehicle.route");
 const transactionRoutes = require("./routes/transaction/transaction.route");
@@ -33,6 +35,9 @@ app.use(express.static(path.join(__dirname, "public")));
 // view engine setup
 app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "jade");
+
+// Swagger UI
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs, { explorer: true }));
 
 // Routes
 app.use("/", indexRouter);

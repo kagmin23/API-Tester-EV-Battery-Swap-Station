@@ -3,7 +3,7 @@ const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
 const { dashboard, listStationBatteries, batteryDetail, batteryHistory, updateBattery, listSwapRequests, confirmSwapRequest, recordSwapReturn, createStationPayment, stationSwapHistory } = require('../../controllers/staff/staff.controller');
 
-router.use(authenticate, authorizeRoles('staff','admin'));
+router.use(authenticate, authorizeRoles('staff', 'admin'));
 
 router.get('/stations/:stationId/dashboard', dashboard);
 router.get('/stations/:stationId/batteries', listStationBatteries);
@@ -15,5 +15,216 @@ router.put('/swap/requests/:id/confirm', confirmSwapRequest);
 router.put('/swap/returns/:id', recordSwapReturn);
 router.post('/payments/station', createStationPayment);
 router.get('/swap/history', stationSwapHistory);
+
+/**
+ * @swagger
+ * tags:
+ *   name: Staff
+ *   description: Station staff operations
+ */
+
+/**
+ * @swagger
+ * /api/staff/stations/{stationId}/dashboard:
+ *   get:
+ *     summary: Station dashboard metrics
+ *     tags: [Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Dashboard data
+ */
+
+/**
+ * @swagger
+ * /api/staff/stations/{stationId}/batteries:
+ *   get:
+ *     summary: List station batteries
+ *     tags: [Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Batteries list
+ */
+
+/**
+ * @swagger
+ * /api/staff/batteries/{id}:
+ *   get:
+ *     summary: Get battery detail
+ *     tags: [Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Battery detail
+ */
+
+/**
+ * @swagger
+ * /api/staff/batteries/{id}/history:
+ *   get:
+ *     summary: Get battery history
+ *     tags: [Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Battery history
+ */
+
+/**
+ * @swagger
+ * /api/staff/batteries/{id}:
+ *   put:
+ *     summary: Update a battery
+ *     description: Update status and/or SOH for a battery. Status must be one of charging, full, faulty, in-use, idle. SOH range 0-100.
+ *     tags: [Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [charging, full, faulty, in-use, idle]
+ *               soh:
+ *                 type: number
+ *                 minimum: 0
+ *                 maximum: 100
+ *     responses:
+ *       200:
+ *         description: Battery updated
+ */
+
+/**
+ * @swagger
+ * /api/staff/swap/requests:
+ *   get:
+ *     summary: List swap requests
+ *     tags: [Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Swap requests
+ */
+
+/**
+ * @swagger
+ * /api/staff/swap/requests/{id}/confirm:
+ *   put:
+ *     summary: Confirm a swap request
+ *     tags: [Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Request confirmed
+ */
+
+/**
+ * @swagger
+ * /api/staff/swap/returns/{id}:
+ *   put:
+ *     summary: Record a returned swap battery
+ *     tags: [Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Return recorded
+ */
+
+/**
+ * @swagger
+ * /api/staff/payments/station:
+ *   post:
+ *     summary: Create a station payment record
+ *     description: Records a cash payment at the station, optionally linked to a booking.
+ *     tags: [Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [stationId, amount]
+ *             properties:
+ *               stationId:
+ *                 type: string
+ *               amount:
+ *                 type: number
+ *                 minimum: 0
+ *               bookingId:
+ *                 type: string
+ *                 description: Optional booking to associate
+ *     responses:
+ *       201:
+ *         description: Payment recorded
+ */
+
+/**
+ * @swagger
+ * /api/staff/swap/history:
+ *   get:
+ *     summary: Station swap history
+ *     tags: [Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Swap history
+ */
 
 module.exports = router;
