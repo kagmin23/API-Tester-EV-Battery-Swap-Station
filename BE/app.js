@@ -9,6 +9,7 @@ const User = require("./models/auth/auth.model")
 const connectDB = require("./config/db.config");
 const authRoutes = require("./routes/auth/auth.route");
 const vehicleRoutes = require("./routes/vehicle/vehicle.route");
+const transactionRoutes = require("./routes/transaction/transaction.route");
 const userRoutes = require("./routes/user/user.route");
 const stationRoutes = require("./routes/station/station.route");
 const bookingRoutes = require("./routes/booking/booking.route");
@@ -38,6 +39,7 @@ app.use("/", indexRouter);
 app.use("/users", usersRouter);
 app.use("/api/auth", authRoutes);
 app.use("/api/vehicles", vehicleRoutes);
+app.use("/api/transactions", transactionRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/stations", stationRoutes);
 app.use("/api/booking", bookingRoutes);
