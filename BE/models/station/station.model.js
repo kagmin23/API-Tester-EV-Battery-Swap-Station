@@ -9,6 +9,21 @@ const stationSchema = new mongoose.Schema({
   capacity: { type: Number, min: 0, default: 0 },
   sohAvg: { type: Number, min: 0, max: 100, default: 100 },
   availableBatteries: { type: Number, default: 0 },
+
+  location: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number], // [longitude, latitude]
+      required: true
+    }
+  }
 }, { timestamps: true });
+
+// Index cần thiết cho truy vấn khoảng cách ($near)
+stationSchema.index({ location: '2dsphere' });
 
 module.exports = mongoose.model('Station', stationSchema);

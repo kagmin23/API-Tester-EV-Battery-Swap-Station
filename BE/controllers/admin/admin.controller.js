@@ -233,6 +233,39 @@ const aiPredictions = async (req, res) => {
     });
 };
 
+const createStationSchema = z.object({
+  stationName: z.string().min(2),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  district: z.string().optional(),
+  map_url: z.string().url().optional(),
+  capacity: z.number().int().min(0).optional(),
+  lat: z.number(),
+  lng: z.number(),
+});
+const createStation = async (req, res) => {
+  try {
+    const body = createStationSchema.parse(req.body);
+    const station = await Station.create({
+      stationName: body.stationName,
+      address: body.address,
+      city: body.city,
+      district: body.district,
+      map_url: body.map_url,
+      capacity: body.capacity ?? 0,
+      sohAvg: 100,
+      availableBatteries: 0,
+      location: { type: 'Point', coordinates: [body.lng, body.lat] },
+    });
+    return res.status(201).json({ success: true, data: station, message: 'Station created' });
+  } catch (err) {
+    if (err instanceof ZodError) {
+      return res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Invalid input' });
+    }
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   listStations,
   getStation,
@@ -249,4 +282,5 @@ module.exports = {
   reportsOverview,
   reportsUsage,
   aiPredictions,
+  createStation,
 };

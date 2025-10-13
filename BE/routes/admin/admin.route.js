@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions } = require('../../controllers/admin/admin.controller');
+const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions, createStation } = require('../../controllers/admin/admin.controller');
 
 router.use(authenticate, authorizeRoles('admin'));
 
 router.get('/stations', listStations);
+router.post('/stations', createStation);
 router.get('/stations/:id', getStation);
 router.post('/stations/transfer', transferBatteries);
 router.get('/batteries/faulty', listFaultyBatteries);

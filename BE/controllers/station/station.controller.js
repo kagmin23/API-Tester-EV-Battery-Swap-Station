@@ -3,22 +3,24 @@ const StationRating = require("../../models/rating/stationRating.model");
 const Battery = require("../../models/battery/battery.model");
 const { z, ZodError } = require("zod");
 
-// Since location is removed, allow filtering by city/district and order by availability
 const nearbySchema = z.object({
-  city: z.string().optional(),
-  district: z.string().optional(),
+  lat: z.coerce.number(),
+  lng: z.coerce.number(),
+  radius: z.coerce.number().optional().default(5000),
   limit: z.coerce.number().optional().default(50),
 });
 
 const listNearbyStations = async (req, res) => {
   try {
-    const { city, district, limit } = nearbySchema.parse(req.query);
-    const filter = {};
-    if (city) filter.city = city;
-    if (district) filter.district = district;
-    const stations = await Station.find(filter)
-      .sort({ availableBatteries: -1 })
-      .limit(limit);
+    const { lat, lng, radius, limit } = nearbySchema.parse(req.query);
+    const stations = await Station.find({
+      location: {
+        $near: {
+          $geometry: { type: 'Point', coordinates: [lng, lat] },
+          $maxDistance: radius,
+        },
+      },
+    }).limit(limit);
     return res.status(200).json({ success: true, data: stations });
   } catch (err) {
     if (err instanceof ZodError) {
