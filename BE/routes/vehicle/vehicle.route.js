@@ -55,7 +55,7 @@ router.post('/', createVehicle);
  * @swagger
  * /api/vehicles:
  *   get:
- *     summary: List vehicles
+ *     summary: List current vehicles
  *     tags: [Vehicles]
  *     security:
  *       - bearerAuth: []

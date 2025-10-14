@@ -37,7 +37,35 @@ app.set("views", path.join(__dirname, "views"));
 app.set("view engine", "jade");
 
 // Swagger UI
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs, { explorer: true }));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
+  explorer: true,
+  swaggerOptions: {
+    tagsSorter: (a, b) => {
+      const preferredOrder = [
+        "Auth",
+        "Users",
+        "Stations",
+        "Booking",
+        "Payments",
+        "Transactions",
+        "Support",
+        "Staff",
+        "Vehicles",
+        "Admin"
+      ];
+      const ai = preferredOrder.indexOf(a);
+      const bi = preferredOrder.indexOf(b);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    },
+    operationsSorter: (a, b) => {
+      const methodOrder = ["get", "post", "put", "delete", "patch"];
+      const am = methodOrder.indexOf(a.get("method"));
+      const bm = methodOrder.indexOf(b.get("method"));
+      if (am !== bm) return am - bm;
+      return a.get("path").localeCompare(b.get("path"));
+    }
+  }
+}));
 
 // Routes
 app.use("/", indexRouter);

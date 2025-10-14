@@ -25,10 +25,10 @@ const { authenticate, optionalAuthenticate } = require('../../middlewares/auth/a
  *             properties:
  *               email:
  *                 type: string
- *                 example: user@example.com
+ *                 example: admin@gmail.com
  *               password:
  *                 type: string
- *                 example: secret123
+ *                 example: 123123
  *     responses:
  *       200:
  *         description: Logged in successfully
