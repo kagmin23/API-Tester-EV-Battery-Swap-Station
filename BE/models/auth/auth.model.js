@@ -47,6 +47,8 @@ const userSchema = new mongoose.Schema(
       default: "active",
       index: true,
     },
+    // Public avatar URL (served from /public or external)
+    avatar: { type: String, default: null },
   },
   { timestamps: true }
 );
