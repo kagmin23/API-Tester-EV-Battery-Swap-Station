@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: ["admin", "driver", "staff"],
-      default: "driver",
+      default: "driver", // Assumption: users registering are drivers by default
       required: true,
       index: true,
     },

@@ -20,9 +20,7 @@ const getStation = async (req, res) => {
     if (!st)
       return res.status(404).json({ success: false, message: "Not found" });
     const batteries = await Battery.find({ station: st._id });
-    return res
-      .status(200)
-      .json({ success: true, data: { station: st, batteries } });
+    return res.status(200).json({ success: true, data: { station: st, batteries } });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
@@ -138,22 +136,6 @@ const upsertStaff = async (req, res) => {
       });
     } else {
       user.fullName = body.fullName;
-      const changeRoleSchema = z.object({ role: z.enum(['admin','driver','staff']) });
-      const changeUserRole = async (req, res) => {
-        try {
-          const { id } = req.params;
-          const { role } = changeRoleSchema.parse(req.body);
-          const user = await User.findById(id);
-          if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-          user.role = role;
-          await user.save();
-          const sanitized = user.toObject(); delete sanitized.password;
-          return res.status(200).json({ success: true, data: sanitized, message: 'Role updated' });
-        } catch (err) {
-          if (err instanceof ZodError) return res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Invalid input' });
-          return res.status(400).json({ success: false, message: err.message });
-        }
-      };
       user.phoneNumber = body.phoneNumber;
       user.role = "staff";
       if (body.password) user.password = body.password;
@@ -278,6 +260,27 @@ const createStation = async (req, res) => {
     if (err instanceof ZodError) {
       return res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Invalid input' });
     }
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// Admin: change user role
+const changeUserRoleSchema = z.object({ role: z.enum(["admin", "driver", "staff"]) });
+const changeUserRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = changeUserRoleSchema.parse(req.body);
+    const user = await User.findById(id);
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
+    user.role = body.role;
+    await user.save();
+    const sanitized = user.toObject();
+    delete sanitized.password;
+    return res.status(200).json({ success: true, data: sanitized, message: "User role updated" });
+  } catch (err) {
+    if (err instanceof ZodError)
+      return res.status(400).json({ success: false, message: err.errors?.[0]?.message || "Invalid input" });
     return res.status(400).json({ success: false, message: err.message });
   }
 };

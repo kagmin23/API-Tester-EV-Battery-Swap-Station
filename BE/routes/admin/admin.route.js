@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions, createStation } = require('../../controllers/admin/admin.controller');
+const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions, createStation, changeUserRole } = require('../../controllers/admin/admin.controller');
 
 router.use(authenticate, authorizeRoles('admin'));
 
@@ -268,6 +268,41 @@ router.post('/staff', upsertStaff);
  *         description: Staff not found
  */
 router.put('/staff/:id', upsertStaff);
+/**
+ * @swagger
+ * /admin/users/{id}/role:
+ *   put:
+ *     summary: Update a user's role (admin-only)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [admin, driver, staff]
+ *     responses:
+ *       200:
+ *         description: User role updated
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ */
+router.put('/users/:id/role', changeUserRole);
 /**
  * @swagger
  * /admin/subscriptions/plans:
