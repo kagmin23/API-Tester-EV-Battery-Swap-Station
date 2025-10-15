@@ -103,8 +103,6 @@ const registerSchema = z
     phoneNumber: z
       .string()
       .regex(/^0\d{9}$/, { message: "Phone number must be 10 digits" }),
-    // Optional role assignment: only honored if requester is admin
-    role: z.enum(["admin", "driver", "staff"]).optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -132,18 +130,11 @@ const register = async (req, res) => {
     const otpHash = crypto.createHash("sha256").update(rawOtp).digest("hex");
     const otpExpires = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
 
-    // Determine role: if requester is authenticated admin, allow explicit role; else default handled by model
-    let roleToSet = undefined;
-    if (req.user && req.user.role === "admin" && req.body.role) {
-      roleToSet = req.body.role;
-    }
-
     const user = new User({
       email: data.email,
       password: data.password,
       fullName: data.fullName,
       phoneNumber: data.phoneNumber,
-      ...(roleToSet ? { role: roleToSet } : {}),
       isVerified: false,
       emailOTP: otpHash,
       emailOTPExpires: otpExpires,
