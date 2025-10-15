@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions, createStation, changeUserRole } = require('../../controllers/admin/admin.controller');
+const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, deleteStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions, createStation, changeUserRole, changeUserStatus } = require('../../controllers/admin/admin.controller');
 
 router.use(authenticate, authorizeRoles('admin'));
 
@@ -47,7 +47,30 @@ router.get('/stations', listStations);
  *         application/json:
  *           schema:
  *             type: object
- *             additionalProperties: true
+ *             required:
+ *               - stationName
+ *               - lat
+ *               - lng
+ *             properties:
+ *               stationName:
+ *                 type: string
+ *                 minLength: 2
+ *               address:
+ *                 type: string
+ *               city:
+ *                 type: string
+ *               district:
+ *                 type: string
+ *               map_url:
+ *                 type: string
+ *                 format: uri
+ *               capacity:
+ *                 type: integer
+ *                 minimum: 0
+ *               lat:
+ *                 type: number
+ *               lng:
+ *                 type: number
  *     responses:
  *       201:
  *         description: Station created
@@ -94,7 +117,17 @@ router.get('/stations/:id', getStation);
  *         application/json:
  *           schema:
  *             type: object
- *             additionalProperties: true
+ *             required: [fromStationId, toStationId, batteryIds]
+ *             properties:
+ *               fromStationId:
+ *                 type: string
+ *               toStationId:
+ *                 type: string
+ *               batteryIds:
+ *                 type: array
+ *                 minItems: 1
+ *                 items:
+ *                   type: string
  *     responses:
  *       200:
  *         description: Transfer executed
@@ -150,6 +183,13 @@ router.get('/complaints', listComplaints);
  *           type: string
  *     requestBody:
  *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               response:
+ *                 type: string
  *     responses:
  *       200:
  *         description: Complaint resolved
@@ -226,7 +266,21 @@ router.get('/staff', listStaff);
  *         application/json:
  *           schema:
  *             type: object
- *             additionalProperties: true
+ *             required: [fullName, email, phoneNumber]
+ *             properties:
+ *               fullName:
+ *                 type: string
+ *                 minLength: 2
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Must start with 0 and have 10 digits
+ *                 example: "0912345678"
+ *               password:
+ *                 type: string
+ *                 minLength: 6
  *     responses:
  *       200:
  *         description: Staff upserted
@@ -256,7 +310,21 @@ router.post('/staff', upsertStaff);
  *         application/json:
  *           schema:
  *             type: object
- *             additionalProperties: true
+ *             required: [fullName, email, phoneNumber]
+ *             properties:
+ *               fullName:
+ *                 type: string
+ *                 minLength: 2
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Must start with 0 and have 10 digits
+ *                 example: "0912345678"
+ *               password:
+ *                 type: string
+ *                 minLength: 6
  *     responses:
  *       200:
  *         description: Staff updated
@@ -268,6 +336,29 @@ router.post('/staff', upsertStaff);
  *         description: Staff not found
  */
 router.put('/staff/:id', upsertStaff);
+/**
+ * @swagger
+ * /admin/staff/{id}:
+ *   delete:
+ *     summary: Delete a staff account
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Staff deleted
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Staff not found
+ */
+router.delete('/staff/:id', deleteStaff);
 /**
  * @swagger
  * /api/admin/users/{id}/role:
@@ -288,6 +379,7 @@ router.put('/staff/:id', upsertStaff);
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [role]
  *             properties:
  *               role:
  *                 type: string
@@ -303,6 +395,42 @@ router.put('/staff/:id', upsertStaff);
  *         description: User not found
  */
 router.put('/users/:id/role', changeUserRole);
+/**
+ * @swagger
+ * /admin/users/{id}/status:
+ *   put:
+ *     summary: Update a user's status (active/locked)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [active, locked]
+ *     responses:
+ *       200:
+ *         description: User status updated
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ */
+router.put('/users/:id/status', changeUserStatus);
 /**
  * @swagger
  * /api/admin/subscriptions/plans:
@@ -332,7 +460,38 @@ router.get('/subscriptions/plans', listPlans);
  *         application/json:
  *           schema:
  *             type: object
- *             additionalProperties: true
+ *             required: [price]
+ *             properties:
+ *               subcriptionName:
+ *                 type: string
+ *               price:
+ *                 type: number
+ *                 minimum: 0
+ *               period:
+ *                 type: string
+ *                 enum: [monthly, yearly]
+ *               benefits:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               status:
+ *                 type: string
+ *                 enum: [active, expired]
+ *               duration_months:
+ *                 type: integer
+ *                 minimum: 1
+ *               start_date:
+ *                 type: string
+ *                 format: date-time
+ *               end_date:
+ *                 type: string
+ *                 format: date-time
+ *               name:
+ *                 type: string
+ *                 description: Legacy field, mapped to subcriptionName
+ *               active:
+ *                 type: boolean
+ *                 description: Legacy field, mapped to status
  *     responses:
  *       200:
  *         description: Plan upserted
@@ -362,7 +521,37 @@ router.post('/subscriptions/plans', upsertPlan);
  *         application/json:
  *           schema:
  *             type: object
- *             additionalProperties: true
+ *             properties:
+ *               subcriptionName:
+ *                 type: string
+ *               price:
+ *                 type: number
+ *                 minimum: 0
+ *               period:
+ *                 type: string
+ *                 enum: [monthly, yearly]
+ *               benefits:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               status:
+ *                 type: string
+ *                 enum: [active, expired]
+ *               duration_months:
+ *                 type: integer
+ *                 minimum: 1
+ *               start_date:
+ *                 type: string
+ *                 format: date-time
+ *               end_date:
+ *                 type: string
+ *                 format: date-time
+ *               name:
+ *                 type: string
+ *                 description: Legacy field, mapped to subcriptionName
+ *               active:
+ *                 type: boolean
+ *                 description: Legacy field, mapped to status
  *     responses:
  *       200:
  *         description: Plan updated

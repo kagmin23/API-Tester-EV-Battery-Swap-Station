@@ -37,6 +37,14 @@ const login = async (req, res) => {
         message: "Incorrect account or password",
       });
 
+    if (user.status === 'locked') {
+      return res.status(403).json({
+        success: false,
+        data: null,
+        message: 'Account is locked. Please contact support.',
+      });
+    }
+
     if (!user.isVerified) {
       return res.status(403).json({
         success: false,

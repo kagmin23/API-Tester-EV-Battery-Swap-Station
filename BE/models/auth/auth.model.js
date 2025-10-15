@@ -40,6 +40,13 @@ const userSchema = new mongoose.Schema(
     passwordResetOTPLastSentAt: { type: Date, default: null },
     passwordResetOTPResendCount: { type: Number, default: 0 },
     passwordResetOTPResendWindowStart: { type: Date, default: null },
+    // Account status control
+    status: {
+      type: String,
+      enum: ["active", "locked"],
+      default: "active",
+      index: true,
+    },
   },
   { timestamps: true }
 );
