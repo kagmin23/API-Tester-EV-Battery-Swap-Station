@@ -3,6 +3,7 @@ const Battery = require('../../models/battery/battery.model');
 const BatteryHistory = require('../../models/battery/batteryHistory.model');
 const Payment = require('../../models/payment/payment.model');
 const { z, ZodError } = require('zod');
+const User = require('../../models/auth/auth.model');
 
 const dashboard = async (req, res) => {
   try {
@@ -75,4 +76,14 @@ const stationSwapHistory = async (req, res) => {
   return res.status(200).json({ success: true, data: [], message: 'Not implemented: depends on swap models' });
 };
 
-module.exports = { dashboard, listStationBatteries, batteryDetail, batteryHistory, updateBattery, listSwapRequests, confirmSwapRequest, recordSwapReturn, createStationPayment, stationSwapHistory };
+const me = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password').populate('station', 'stationName address city district location');
+    if (!user || user.role !== 'staff') return res.status(403).json({ success: false, message: 'Forbidden' });
+    return res.status(200).json({ success: true, data: user });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { dashboard, listStationBatteries, batteryDetail, batteryHistory, updateBattery, listSwapRequests, confirmSwapRequest, recordSwapReturn, createStationPayment, stationSwapHistory, me };

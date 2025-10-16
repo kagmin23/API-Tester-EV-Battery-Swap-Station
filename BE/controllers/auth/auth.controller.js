@@ -37,6 +37,14 @@ const login = async (req, res) => {
         message: "Incorrect account or password",
       });
 
+    if (user.status === 'locked') {
+      return res.status(403).json({
+        success: false,
+        data: null,
+        message: 'Account is locked. Please contact support.',
+      });
+    }
+
     if (!user.isVerified) {
       return res.status(403).json({
         success: false,
@@ -80,7 +88,8 @@ const login = async (req, res) => {
           email: user.email,
           fullName: user.fullName,
           phoneNumber: user.phoneNumber,
-            role: user.role,
+          role: user.role,
+          avatar: user.avatar || null,
         },
       },
       message: "Login successfully",
@@ -103,8 +112,6 @@ const registerSchema = z
     phoneNumber: z
       .string()
       .regex(/^0\d{9}$/, { message: "Phone number must be 10 digits" }),
-    // Optional role assignment: only honored if requester is admin
-    role: z.enum(["admin", "driver", "staff"]).optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
@@ -132,18 +139,11 @@ const register = async (req, res) => {
     const otpHash = crypto.createHash("sha256").update(rawOtp).digest("hex");
     const otpExpires = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
 
-    // Determine role: if requester is authenticated admin, allow explicit role; else default handled by model
-    let roleToSet = undefined;
-    if (req.user && req.user.role === "admin" && req.body.role) {
-      roleToSet = req.body.role;
-    }
-
     const user = new User({
       email: data.email,
       password: data.password,
       fullName: data.fullName,
       phoneNumber: data.phoneNumber,
-      ...(roleToSet ? { role: roleToSet } : {}),
       isVerified: false,
       emailOTP: otpHash,
       emailOTPExpires: otpExpires,
@@ -239,6 +239,7 @@ const refresh = async (req, res) => {
           fullName: user.fullName,
           phoneNumber: user.phoneNumber,
           role: user.role,
+          avatar: user.avatar || null,
         },
       },
       message: "Token refreshed successfully",

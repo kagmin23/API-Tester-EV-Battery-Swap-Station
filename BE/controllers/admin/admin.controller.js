@@ -20,9 +20,8 @@ const getStation = async (req, res) => {
     if (!st)
       return res.status(404).json({ success: false, message: "Not found" });
     const batteries = await Battery.find({ station: st._id });
-    return res
-      .status(200)
-      .json({ success: true, data: { station: st, batteries } });
+    const staff = await User.find({ role: 'staff', station: st._id }).select('-password');
+    return res.status(200).json({ success: true, data: { station: st, batteries, staff } });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
@@ -60,6 +59,57 @@ const listFaultyBatteries = async (req, res) => {
     const items = await Battery.find({ status: "faulty" });
     return res.status(200).json({ success: true, data: items });
   } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// List all batteries with filters and pagination (admin)
+const listBatteriesQuery = z.object({
+  status: z.enum(["charging", "full", "faulty", "in-use", "idle"]).optional(),
+  stationId: z.string().optional(),
+  sohMin: z.coerce.number().min(0).max(100).optional(),
+  sohMax: z.coerce.number().min(0).max(100).optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  sort: z.enum(["createdAt", "updatedAt", "soh"]).optional().default("createdAt"),
+  order: z.enum(["asc", "desc"]).optional().default("desc"),
+});
+const listBatteries = async (req, res) => {
+  try {
+    const q = listBatteriesQuery.parse(req.query);
+    const filter = {};
+    if (q.status) filter.status = q.status;
+    if (q.stationId) filter.station = q.stationId;
+    if (q.sohMin !== undefined || q.sohMax !== undefined) {
+      filter.soh = {};
+      if (q.sohMin !== undefined) filter.soh.$gte = q.sohMin;
+      if (q.sohMax !== undefined) filter.soh.$lte = q.sohMax;
+    }
+    const skip = (q.page - 1) * q.limit;
+    const sortObj = { [q.sort]: q.order === "asc" ? 1 : -1 };
+    const [items, total] = await Promise.all([
+      Battery.find(filter)
+        .populate("station", "stationName address")
+        .sort(sortObj)
+        .skip(skip)
+        .limit(q.limit),
+      Battery.countDocuments(filter),
+    ]);
+    return res.status(200).json({
+      success: true,
+      data: items,
+      pagination: {
+        total,
+        page: q.page,
+        limit: q.limit,
+        pages: Math.ceil(total / q.limit),
+      },
+    });
+  } catch (err) {
+    if (err instanceof ZodError)
+      return res
+        .status(400)
+        .json({ success: false, message: err.errors?.[0]?.message || "Invalid query" });
     return res.status(400).json({ success: false, message: err.message });
   }
 };
@@ -122,12 +172,65 @@ const upsertStaffSchema = z.object({
   email: z.string().email(),
   phoneNumber: z.string().regex(/^0\d{9}$/),
   password: z.string().min(6).optional(),
+  stationId: z.string().optional(),
 });
 const upsertStaff = async (req, res) => {
   try {
     const body = upsertStaffSchema.parse(req.body);
-    let user = await User.findOne({ email: body.email });
-    if (!user) {
+    let user;
+    if (req.params.id) {
+      // Update existing staff by id
+      user = await User.findById(req.params.id);
+      if (!user)
+        return res
+          .status(404)
+          .json({ success: false, message: "Staff not found" });
+
+      // Ensure role is staff (do not allow editing admins via this endpoint)
+      if (user.role !== "staff")
+        return res
+          .status(400)
+          .json({ success: false, message: "Target user is not staff" });
+
+      // Handle potential email/phone uniqueness changes
+      if (user.email !== body.email) {
+        const emailTaken = await User.findOne({ email: body.email });
+        if (emailTaken && emailTaken._id.toString() !== user._id.toString()) {
+          return res
+            .status(409)
+            .json({ success: false, message: "Email already in use" });
+        }
+        user.email = body.email;
+      }
+      if (user.phoneNumber !== body.phoneNumber) {
+        const phoneTaken = await User.findOne({ phoneNumber: body.phoneNumber });
+        if (phoneTaken && phoneTaken._id.toString() !== user._id.toString()) {
+          return res
+            .status(409)
+            .json({ success: false, message: "Phone number already in use" });
+        }
+        user.phoneNumber = body.phoneNumber;
+      }
+      user.fullName = body.fullName;
+      if (body.password) user.password = body.password; // hashed by pre-save
+      // Keep role and verification
+      user.role = "staff";
+      user.isVerified = true;
+      // Assign station if provided
+      if (body.stationId) {
+        const st = await Station.findById(body.stationId);
+        if (!st) return res.status(400).json({ success: false, message: 'Invalid stationId' });
+        user.station = st._id;
+      }
+      await user.save();
+    } else {
+      // Create staff by email (no verification needed)
+      const exists = await User.findOne({ $or: [ { email: body.email }, { phoneNumber: body.phoneNumber } ] });
+      if (exists) {
+        return res
+          .status(409)
+          .json({ success: false, message: "Email or phone already in use" });
+      }
       user = new User({
         email: body.email,
         fullName: body.fullName,
@@ -135,14 +238,16 @@ const upsertStaff = async (req, res) => {
         password: body.password || body.phoneNumber,
         role: "staff",
         isVerified: true,
+        status: 'active',
+        station: null,
       });
-    } else {
-      user.fullName = body.fullName;
-      user.phoneNumber = body.phoneNumber;
-      user.role = "staff";
-      if (body.password) user.password = body.password;
+      if (body.stationId) {
+        const st = await Station.findById(body.stationId);
+        if (!st) return res.status(400).json({ success: false, message: 'Invalid stationId' });
+        user.station = st._id;
+      }
+      await user.save();
     }
-    await user.save();
     const sanitized = user.toObject();
     delete sanitized.password;
     return res
@@ -266,6 +371,70 @@ const createStation = async (req, res) => {
   }
 };
 
+// Delete staff account by id (admin only)
+const deleteStaff = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
+    if (user.role !== 'staff')
+      return res.status(400).json({ success: false, message: 'Target user is not staff' });
+    await User.deleteOne({ _id: id });
+    return res.status(200).json({ success: true, data: null, message: 'Staff deleted' });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// Change user status (driver or staff) to active/locked
+const changeUserStatusSchema = z.object({ status: z.enum(['active', 'locked']) });
+const changeUserStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = changeUserStatusSchema.parse(req.body);
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    if (user.role !== 'driver' && user.role !== 'staff') {
+      return res.status(400).json({ success: false, message: 'Only driver or staff status can be updated' });
+    }
+    user.status = status;
+    // If locking account, also invalidate refresh token
+    if (status === 'locked') {
+      user.refreshToken = null;
+      user.refreshTokenExpiresAt = null;
+    }
+    await user.save();
+    const sanitized = user.toObject();
+    delete sanitized.password;
+    return res.status(200).json({ success: true, data: sanitized, message: 'User status updated' });
+  } catch (err) {
+    if (err instanceof ZodError) return res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Invalid input' });
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// Admin: change user role
+const changeUserRoleSchema = z.object({ role: z.enum(["admin", "driver", "staff"]) });
+const changeUserRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = changeUserRoleSchema.parse(req.body);
+    const user = await User.findById(id);
+    if (!user)
+      return res.status(404).json({ success: false, message: "User not found" });
+    user.role = body.role;
+    await user.save();
+    const sanitized = user.toObject();
+    delete sanitized.password;
+    return res.status(200).json({ success: true, data: sanitized, message: "User role updated" });
+  } catch (err) {
+    if (err instanceof ZodError)
+      return res.status(400).json({ success: false, message: err.errors?.[0]?.message || "Invalid input" });
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   listStations,
   getStation,
@@ -277,10 +446,14 @@ module.exports = {
   getCustomer,
   listStaff,
   upsertStaff,
+  listBatteries,
+  deleteStaff,
   listPlans,
   upsertPlan,
   reportsOverview,
   reportsUsage,
   aiPredictions,
   createStation,
+  changeUserRole,
+  changeUserStatus,
 };
