@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, deleteStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions, createStation, changeUserRole, changeUserStatus } = require('../../controllers/admin/admin.controller');
+const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions, createStation, changeUserRole, changeUserStatus } = require('../../controllers/admin/admin.controller');
 
 router.use(authenticate, authorizeRoles('admin'));
 
@@ -152,6 +152,66 @@ router.post('/stations/transfer', transferBatteries);
  *         description: Unauthorized
  */
 router.get('/batteries/faulty', listFaultyBatteries);
+/**
+ * @swagger
+ * /api/admin/batteries:
+ *   get:
+ *     summary: List all batteries (admin)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [charging, full, faulty, in-use, idle]
+ *       - in: query
+ *         name: stationId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: sohMin
+ *         schema:
+ *           type: number
+ *           minimum: 0
+ *           maximum: 100
+ *       - in: query
+ *         name: sohMax
+ *         schema:
+ *           type: number
+ *           minimum: 0
+ *           maximum: 100
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *       - in: query
+ *         name: sort
+ *         schema:
+ *           type: string
+ *           enum: [createdAt, updatedAt, soh]
+ *           default: createdAt
+ *       - in: query
+ *         name: order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *     responses:
+ *       200:
+ *         description: Batteries list with pagination
+ */
+router.get('/batteries', listBatteries);
 /**
  * @swagger
  * /api/admin/complaints:

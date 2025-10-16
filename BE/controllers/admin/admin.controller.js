@@ -62,6 +62,57 @@ const listFaultyBatteries = async (req, res) => {
   }
 };
 
+// List all batteries with filters and pagination (admin)
+const listBatteriesQuery = z.object({
+  status: z.enum(["charging", "full", "faulty", "in-use", "idle"]).optional(),
+  stationId: z.string().optional(),
+  sohMin: z.coerce.number().min(0).max(100).optional(),
+  sohMax: z.coerce.number().min(0).max(100).optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  sort: z.enum(["createdAt", "updatedAt", "soh"]).optional().default("createdAt"),
+  order: z.enum(["asc", "desc"]).optional().default("desc"),
+});
+const listBatteries = async (req, res) => {
+  try {
+    const q = listBatteriesQuery.parse(req.query);
+    const filter = {};
+    if (q.status) filter.status = q.status;
+    if (q.stationId) filter.station = q.stationId;
+    if (q.sohMin !== undefined || q.sohMax !== undefined) {
+      filter.soh = {};
+      if (q.sohMin !== undefined) filter.soh.$gte = q.sohMin;
+      if (q.sohMax !== undefined) filter.soh.$lte = q.sohMax;
+    }
+    const skip = (q.page - 1) * q.limit;
+    const sortObj = { [q.sort]: q.order === "asc" ? 1 : -1 };
+    const [items, total] = await Promise.all([
+      Battery.find(filter)
+        .populate("station", "stationName address")
+        .sort(sortObj)
+        .skip(skip)
+        .limit(q.limit),
+      Battery.countDocuments(filter),
+    ]);
+    return res.status(200).json({
+      success: true,
+      data: items,
+      pagination: {
+        total,
+        page: q.page,
+        limit: q.limit,
+        pages: Math.ceil(total / q.limit),
+      },
+    });
+  } catch (err) {
+    if (err instanceof ZodError)
+      return res
+        .status(400)
+        .json({ success: false, message: err.errors?.[0]?.message || "Invalid query" });
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
 const listComplaints = async (req, res) => {
   try {
     const items = await Complaint.find({}).sort({ createdAt: -1 });
@@ -381,6 +432,7 @@ module.exports = {
   getCustomer,
   listStaff,
   upsertStaff,
+  listBatteries,
   deleteStaff,
   listPlans,
   upsertPlan,
