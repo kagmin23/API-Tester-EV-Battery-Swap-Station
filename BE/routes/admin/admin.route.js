@@ -341,6 +341,9 @@ router.get('/staff', listStaff);
  *               password:
  *                 type: string
  *                 minLength: 6
+ *               stationId:
+ *                 type: string
+ *                 description: Optional station to assign the staff
  *     responses:
  *       200:
  *         description: Staff upserted
@@ -385,6 +388,9 @@ router.post('/staff', upsertStaff);
  *               password:
  *                 type: string
  *                 minLength: 6
+ *               stationId:
+ *                 type: string
+ *                 description: Optional station to assign the staff
  *     responses:
  *       200:
  *         description: Staff updated

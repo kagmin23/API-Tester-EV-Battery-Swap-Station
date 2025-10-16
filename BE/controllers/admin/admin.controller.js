@@ -20,7 +20,8 @@ const getStation = async (req, res) => {
     if (!st)
       return res.status(404).json({ success: false, message: "Not found" });
     const batteries = await Battery.find({ station: st._id });
-    return res.status(200).json({ success: true, data: { station: st, batteries } });
+    const staff = await User.find({ role: 'staff', station: st._id }).select('-password');
+    return res.status(200).json({ success: true, data: { station: st, batteries, staff } });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
@@ -171,6 +172,7 @@ const upsertStaffSchema = z.object({
   email: z.string().email(),
   phoneNumber: z.string().regex(/^0\d{9}$/),
   password: z.string().min(6).optional(),
+  stationId: z.string().optional(),
 });
 const upsertStaff = async (req, res) => {
   try {
@@ -214,6 +216,12 @@ const upsertStaff = async (req, res) => {
       // Keep role and verification
       user.role = "staff";
       user.isVerified = true;
+      // Assign station if provided
+      if (body.stationId) {
+        const st = await Station.findById(body.stationId);
+        if (!st) return res.status(400).json({ success: false, message: 'Invalid stationId' });
+        user.station = st._id;
+      }
       await user.save();
     } else {
       // Create staff by email (no verification needed)
@@ -231,7 +239,13 @@ const upsertStaff = async (req, res) => {
         role: "staff",
         isVerified: true,
         status: 'active',
+        station: null,
       });
+      if (body.stationId) {
+        const st = await Station.findById(body.stationId);
+        if (!st) return res.status(400).json({ success: false, message: 'Invalid stationId' });
+        user.station = st._id;
+      }
       await user.save();
     }
     const sanitized = user.toObject();

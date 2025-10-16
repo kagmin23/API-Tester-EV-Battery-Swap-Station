@@ -49,6 +49,8 @@ const userSchema = new mongoose.Schema(
     },
     // Public avatar URL (served from /public or external)
     avatar: { type: String, default: null },
+    // Staff assigned station
+    station: { type: mongoose.Schema.Types.ObjectId, ref: 'Station', index: true, default: null },
   },
   { timestamps: true }
 );

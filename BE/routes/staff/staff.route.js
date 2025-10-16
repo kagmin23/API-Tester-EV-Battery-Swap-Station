@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { dashboard, listStationBatteries, batteryDetail, batteryHistory, updateBattery, listSwapRequests, confirmSwapRequest, recordSwapReturn, createStationPayment, stationSwapHistory } = require('../../controllers/staff/staff.controller');
+const { dashboard, listStationBatteries, batteryDetail, batteryHistory, updateBattery, listSwapRequests, confirmSwapRequest, recordSwapReturn, createStationPayment, stationSwapHistory, me } = require('../../controllers/staff/staff.controller');
 
 router.use(authenticate, authorizeRoles('staff', 'admin'));
 
@@ -15,6 +15,7 @@ router.put('/swap/requests/:id/confirm', confirmSwapRequest);
 router.put('/swap/returns/:id', recordSwapReturn);
 router.post('/payments/station', createStationPayment);
 router.get('/swap/history', stationSwapHistory);
+router.get('/me', me);
 
 /**
  * @swagger
@@ -228,3 +229,16 @@ router.get('/swap/history', stationSwapHistory);
  */
 
 module.exports = router;
+
+/**
+ * @swagger
+ * /api/staff/me:
+ *   get:
+ *     summary: Get current staff profile and assigned station
+ *     tags: [Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Staff info with assigned station
+ */
