@@ -76,10 +76,6 @@ router.post('/login', login);
  *                 type: string
  *                 description: Must start with 0 and have 10 digits
  *                 example: "0912345678"
- *               role:
- *                 type: string
- *                 description: Optional, only honored if requester is admin
- *                 enum: [admin, driver, staff]
  *     responses:
  *       201:
  *         description: User registered

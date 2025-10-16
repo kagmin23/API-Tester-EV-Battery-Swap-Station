@@ -3,18 +3,6 @@ const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
 const { listMyTransactions, getMyTransaction, listStationTransactions, getStationTransaction, listAllTransactions, getTransaction } = require('../../controllers/transaction/transaction.controller');
 
-// Driver endpoints
-router.get('/me', authenticate, listMyTransactions);
-router.get('/me/:id', authenticate, getMyTransaction);
-
-// Staff endpoints (station-based)
-router.get('/station', authenticate, authorizeRoles('staff', 'admin'), listStationTransactions); // ?stationId=&limit=
-router.get('/station/:id', authenticate, authorizeRoles('staff', 'admin'), getStationTransaction);
-
-// Admin endpoints
-router.get('/admin', authenticate, authorizeRoles('admin'), listAllTransactions); // ?user_id=&station_id=&limit=
-router.get('/admin/:id', authenticate, authorizeRoles('admin'), getTransaction);
-
 /**
  * @swagger
  * tags:
@@ -22,6 +10,7 @@ router.get('/admin/:id', authenticate, authorizeRoles('admin'), getTransaction);
  *   description: Transaction queries for drivers, staff, and admins
  */
 
+// Driver endpoints
 /**
  * @swagger
  * /api/transactions/me:
@@ -33,7 +22,10 @@ router.get('/admin/:id', authenticate, authorizeRoles('admin'), getTransaction);
  *     responses:
  *       200:
  *         description: My transactions
+ *       401:
+ *         description: Unauthorized
  */
+router.get('/me', authenticate, listMyTransactions);
 
 /**
  * @swagger
@@ -52,8 +44,14 @@ router.get('/admin/:id', authenticate, authorizeRoles('admin'), getTransaction);
  *     responses:
  *       200:
  *         description: Transaction detail
+ *       404:
+ *         description: Transaction not found
+ *       401:
+ *         description: Unauthorized
  */
+router.get('/me/:id', authenticate, getMyTransaction);
 
+// Staff endpoints (station-based)
 /**
  * @swagger
  * /api/transactions/station:
@@ -67,14 +65,21 @@ router.get('/admin/:id', authenticate, authorizeRoles('admin'), getTransaction);
  *         name: stationId
  *         schema:
  *           type: string
+ *         description: Station ID to filter by
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
+ *         description: Maximum number of results
  *     responses:
  *       200:
  *         description: Station transactions
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.get('/station', authenticate, authorizeRoles('staff', 'admin'), listStationTransactions); // ?stationId=&limit=
 
 /**
  * @swagger
@@ -93,8 +98,16 @@ router.get('/admin/:id', authenticate, authorizeRoles('admin'), getTransaction);
  *     responses:
  *       200:
  *         description: Station transaction detail
+ *       404:
+ *         description: Transaction not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.get('/station/:id', authenticate, authorizeRoles('staff', 'admin'), getStationTransaction);
 
+// Admin endpoints
 /**
  * @swagger
  * /api/transactions/admin:
@@ -108,18 +121,26 @@ router.get('/admin/:id', authenticate, authorizeRoles('admin'), getTransaction);
  *         name: user_id
  *         schema:
  *           type: string
+ *         description: User ID to filter by
  *       - in: query
  *         name: station_id
  *         schema:
  *           type: string
+ *         description: Station ID to filter by
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
+ *         description: Maximum number of results
  *     responses:
  *       200:
  *         description: All transactions
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.get('/admin', authenticate, authorizeRoles('admin'), listAllTransactions); // ?user_id=&station_id=&limit=
 
 /**
  * @swagger
@@ -138,6 +159,13 @@ router.get('/admin/:id', authenticate, authorizeRoles('admin'), getTransaction);
  *     responses:
  *       200:
  *         description: Transaction
+ *       404:
+ *         description: Transaction not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.get('/admin/:id', authenticate, authorizeRoles('admin'), getTransaction);
 
 module.exports = router;

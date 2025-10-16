@@ -3,16 +3,14 @@ const router = express.Router();
 const { authenticate } = require('../../middlewares/auth/auth.middleware');
 const { createSupportRequest, listSupportRequests } = require('../../controllers/support/support.controller');
 
-router.use(authenticate);
-router.post('/requests', createSupportRequest);
-router.get('/requests', listSupportRequests);
-
 /**
  * @swagger
  * tags:
  *   name: Support
  *   description: Support requests
  */
+
+router.use(authenticate);
 
 /**
  * @swagger
@@ -34,8 +32,10 @@ router.get('/requests', listSupportRequests);
  *               title:
  *                 type: string
  *                 minLength: 3
+ *                 description: Support request title
  *               description:
  *                 type: string
+ *                 description: Detailed description of the issue
  *               images:
  *                 type: array
  *                 items:
@@ -44,7 +44,12 @@ router.get('/requests', listSupportRequests);
  *     responses:
  *       201:
  *         description: Support request created
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
  */
+router.post('/requests', createSupportRequest);
 
 /**
  * @swagger
@@ -57,6 +62,9 @@ router.get('/requests', listSupportRequests);
  *     responses:
  *       200:
  *         description: Support requests list
+ *       401:
+ *         description: Unauthorized
  */
+router.get('/requests', listSupportRequests);
 
 module.exports = router;

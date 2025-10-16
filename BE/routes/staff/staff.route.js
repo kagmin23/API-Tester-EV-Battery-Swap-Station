@@ -3,25 +3,14 @@ const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
 const { dashboard, listStationBatteries, batteryDetail, batteryHistory, updateBattery, listSwapRequests, confirmSwapRequest, recordSwapReturn, createStationPayment, stationSwapHistory } = require('../../controllers/staff/staff.controller');
 
-router.use(authenticate, authorizeRoles('staff', 'admin'));
-
-router.get('/stations/:stationId/dashboard', dashboard);
-router.get('/stations/:stationId/batteries', listStationBatteries);
-router.get('/batteries/:id', batteryDetail);
-router.get('/batteries/:id/history', batteryHistory);
-router.put('/batteries/:id', updateBattery);
-router.get('/swap/requests', listSwapRequests);
-router.put('/swap/requests/:id/confirm', confirmSwapRequest);
-router.put('/swap/returns/:id', recordSwapReturn);
-router.post('/payments/station', createStationPayment);
-router.get('/swap/history', stationSwapHistory);
-
 /**
  * @swagger
  * tags:
  *   name: Staff
  *   description: Station staff operations
  */
+
+router.use(authenticate, authorizeRoles('staff', 'admin'));
 
 /**
  * @swagger
@@ -40,7 +29,12 @@ router.get('/swap/history', stationSwapHistory);
  *     responses:
  *       200:
  *         description: Dashboard data
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.get('/stations/:stationId/dashboard', dashboard);
 
 /**
  * @swagger
@@ -59,7 +53,12 @@ router.get('/swap/history', stationSwapHistory);
  *     responses:
  *       200:
  *         description: Batteries list
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.get('/stations/:stationId/batteries', listStationBatteries);
 
 /**
  * @swagger
@@ -78,7 +77,14 @@ router.get('/swap/history', stationSwapHistory);
  *     responses:
  *       200:
  *         description: Battery detail
+ *       404:
+ *         description: Battery not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.get('/batteries/:id', batteryDetail);
 
 /**
  * @swagger
@@ -97,7 +103,14 @@ router.get('/swap/history', stationSwapHistory);
  *     responses:
  *       200:
  *         description: Battery history
+ *       404:
+ *         description: Battery not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.get('/batteries/:id/history', batteryHistory);
 
 /**
  * @swagger
@@ -131,7 +144,16 @@ router.get('/swap/history', stationSwapHistory);
  *     responses:
  *       200:
  *         description: Battery updated
+ *       400:
+ *         description: Invalid input
+ *       404:
+ *         description: Battery not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.put('/batteries/:id', updateBattery);
 
 /**
  * @swagger
@@ -144,7 +166,12 @@ router.get('/swap/history', stationSwapHistory);
  *     responses:
  *       200:
  *         description: Swap requests
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.get('/swap/requests', listSwapRequests);
 
 /**
  * @swagger
@@ -163,7 +190,14 @@ router.get('/swap/history', stationSwapHistory);
  *     responses:
  *       200:
  *         description: Request confirmed
+ *       404:
+ *         description: Request not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.put('/swap/requests/:id/confirm', confirmSwapRequest);
 
 /**
  * @swagger
@@ -182,7 +216,14 @@ router.get('/swap/history', stationSwapHistory);
  *     responses:
  *       200:
  *         description: Return recorded
+ *       404:
+ *         description: Swap not found
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.put('/swap/returns/:id', recordSwapReturn);
 
 /**
  * @swagger
@@ -212,7 +253,14 @@ router.get('/swap/history', stationSwapHistory);
  *     responses:
  *       201:
  *         description: Payment recorded
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.post('/payments/station', createStationPayment);
 
 /**
  * @swagger
@@ -225,6 +273,11 @@ router.get('/swap/history', stationSwapHistory);
  *     responses:
  *       200:
  *         description: Swap history
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
  */
+router.get('/swap/history', stationSwapHistory);
 
 module.exports = router;

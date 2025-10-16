@@ -3,18 +3,14 @@ const router = express.Router();
 const { authenticate } = require('../../middlewares/auth/auth.middleware');
 const { createBooking, listBookings, cancelBooking, getBookingDetail } = require('../../controllers/booking/booking.controller');
 
-router.use(authenticate);
-router.post('/', createBooking);
-router.get('/', listBookings);
-router.put('/:id/cancel', cancelBooking);
-router.get('/:id', getBookingDetail);
-
 /**
  * @swagger
  * tags:
- *   name: Bookings
+ *   name: Booking
  *   description: Booking operations for battery swaps
  */
+
+router.use(authenticate);
 
 /**
  * @swagger
@@ -22,7 +18,7 @@ router.get('/:id', getBookingDetail);
  *   post:
  *     summary: Create a booking
  *     description: Creates a pending booking for the authenticated user at a specific station and time.
- *     tags: [Bookings]
+ *     tags: [Booking]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -46,27 +42,35 @@ router.get('/:id', getBookingDetail);
  *     responses:
  *       201:
  *         description: Booking created
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
  */
+router.post('/', createBooking);
 
 /**
  * @swagger
  * /api/booking:
  *   get:
  *     summary: List my bookings
- *     tags: [Bookings]
+ *     tags: [Booking]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Bookings list
+ *       401:
+ *         description: Unauthorized
  */
+router.get('/', listBookings);
 
 /**
  * @swagger
  * /api/booking/{id}/cancel:
  *   put:
  *     summary: Cancel a booking
- *     tags: [Bookings]
+ *     tags: [Booking]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -78,14 +82,19 @@ router.get('/:id', getBookingDetail);
  *     responses:
  *       200:
  *         description: Booking canceled
+ *       404:
+ *         description: Booking not found
+ *       401:
+ *         description: Unauthorized
  */
+router.put('/:id/cancel', cancelBooking);
 
 /**
  * @swagger
  * /api/booking/{id}:
  *   get:
  *     summary: Get booking detail
- *     tags: [Bookings]
+ *     tags: [Booking]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -97,6 +106,11 @@ router.get('/:id', getBookingDetail);
  *     responses:
  *       200:
  *         description: Booking detail
+ *       404:
+ *         description: Booking not found
+ *       401:
+ *         description: Unauthorized
  */
+router.get('/:id', getBookingDetail);
 
 module.exports = router;

@@ -3,10 +3,6 @@ const router = express.Router();
 const { authenticate } = require('../../middlewares/auth/auth.middleware');
 const { listNearbyStations, getStationDetail, postStationRating, listStationRatings } = require('../../controllers/station/station.controller');
 
-router.get('/', authenticate, listNearbyStations); // /api/stations?lat=&lng=
-router.get('/:id', authenticate, getStationDetail);
-router.post('/:id/ratings', authenticate, postStationRating);
-router.get('/:id/ratings', authenticate, listStationRatings);
 /**
  * @swagger
  * tags:
@@ -28,15 +24,22 @@ router.get('/:id/ratings', authenticate, listStationRatings);
  *         required: true
  *         schema:
  *           type: number
+ *         description: Latitude coordinate
  *       - in: query
  *         name: lng
  *         required: true
  *         schema:
  *           type: number
+ *         description: Longitude coordinate
  *     responses:
  *       200:
  *         description: Station list
+ *       400:
+ *         description: Invalid coordinates
+ *       401:
+ *         description: Unauthorized
  */
+router.get('/', authenticate, listNearbyStations); // /api/stations?lat=&lng=
 
 /**
  * @swagger
@@ -55,7 +58,12 @@ router.get('/:id/ratings', authenticate, listStationRatings);
  *     responses:
  *       200:
  *         description: Station detail
+ *       404:
+ *         description: Station not found
+ *       401:
+ *         description: Unauthorized
  */
+router.get('/:id', authenticate, getStationDetail);
 
 /**
  * @swagger
@@ -90,7 +98,14 @@ router.get('/:id/ratings', authenticate, listStationRatings);
  *     responses:
  *       201:
  *         description: Rating created
+ *       400:
+ *         description: Invalid rating
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Station not found
  */
+router.post('/:id/ratings', authenticate, postStationRating);
 
 /**
  * @swagger
@@ -109,6 +124,11 @@ router.get('/:id/ratings', authenticate, listStationRatings);
  *     responses:
  *       200:
  *         description: Ratings list
+ *       404:
+ *         description: Station not found
+ *       401:
+ *         description: Unauthorized
  */
+router.get('/:id/ratings', authenticate, listStationRatings);
 
 module.exports = router;
