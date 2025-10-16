@@ -37,51 +37,124 @@ router.get('/stations', listStations);
  * @swagger
  * /api/admin/stations:
  *   post:
- *     summary: Create a station
+ *     summary: Create a new station
  *     tags: [Admin]
  *     security:
- *       - bearerAuth: []
+ *       - bearerAuth: []        # Nếu cần JWT xác thực
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - stationName
- *               - lat
- *               - lng
  *             properties:
  *               stationName:
  *                 type: string
- *                 minLength: 2
+ *                 description: Name of the station (min length 2)
+ *                 example: "Battery Hub District 1"
  *               address:
  *                 type: string
+ *                 description: Full address of the station
+ *                 example: "123 Nguyen Trai, District 1"
  *               city:
  *                 type: string
+ *                 description: City where the station is located
+ *                 example: "Ho Chi Minh City"
  *               district:
  *                 type: string
+ *                 description: District of the station
+ *                 example: "District 1"
  *               map_url:
  *                 type: string
- *                 format: uri
+ *                 format: url
+ *                 description: Google Map URL of the station
+ *                 example: "https://goo.gl/maps/abc123"
  *               capacity:
  *                 type: integer
- *                 minimum: 0
+ *                 description: Maximum number of batteries the station can hold
+ *                 example: 100
  *               lat:
  *                 type: number
+ *                 description: Latitude coordinate of the station
+ *                 example: 10.762622
  *               lng:
  *                 type: number
+ *                 description: Longitude coordinate of the station
+ *                 example: 106.660172
  *     responses:
  *       201:
- *         description: Station created
+ *         description: Station created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Station created
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       example: "670e8c2036e4c918f5aa7b32"
+ *                     stationName:
+ *                       type: string
+ *                       example: "Battery Hub District 1"
+ *                     address:
+ *                       type: string
+ *                       example: "123 Nguyen Trai, District 1"
+ *                     city:
+ *                       type: string
+ *                       example: "Ho Chi Minh City"
+ *                     district:
+ *                       type: string
+ *                       example: "District 1"
+ *                     map_url:
+ *                       type: string
+ *                       example: "https://goo.gl/maps/abc123"
+ *                     capacity:
+ *                       type: integer
+ *                       example: 100
+ *                     sohAvg:
+ *                       type: number
+ *                       example: 100
+ *                     availableBatteries:
+ *                       type: integer
+ *                       example: 0
+ *                     location:
+ *                       type: object
+ *                       properties:
+ *                         type:
+ *                           type: string
+ *                           example: "Point"
+ *                         coordinates:
+ *                           type: array
+ *                           items:
+ *                             type: number
+ *                           example: [106.660172, 10.762622]
  *       400:
- *         description: Invalid input
- *       401:
- *         description: Unauthorized
+ *         description: Invalid input or validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Invalid input
  */
+
 router.post('/stations', createStation);
 /**
  * @swagger
+ * /api/admin/stations/{id}:
  * /api/admin/stations/{id}:
  *   get:
  *     summary: Get station details
@@ -105,6 +178,7 @@ router.post('/stations', createStation);
 router.get('/stations/:id', getStation);
 /**
  * @swagger
+ * /api/admin/stations/transfer:
  * /api/admin/stations/transfer:
  *   post:
  *     summary: Transfer batteries between stations
@@ -140,6 +214,7 @@ router.post('/stations/transfer', transferBatteries);
 /**
  * @swagger
  * /api/admin/batteries/faulty:
+ * /api/admin/batteries/faulty:
  *   get:
  *     summary: List faulty batteries
  *     tags: [Admin]
@@ -154,7 +229,7 @@ router.post('/stations/transfer', transferBatteries);
 router.get('/batteries/faulty', listFaultyBatteries);
 /**
  * @swagger
- * /api/admin/batteries:
+ * /api/api/admin/batteries:
  *   get:
  *     summary: List all batteries (admin)
  *     tags: [Admin]
@@ -230,6 +305,7 @@ router.get('/complaints', listComplaints);
 /**
  * @swagger
  * /api/admin/complaints/{id}/resolve:
+ * /api/admin/complaints/{id}/resolve:
  *   put:
  *     summary: Resolve a complaint
  *     tags: [Admin]
@@ -262,6 +338,7 @@ router.put('/complaints/:id/resolve', resolveComplaint);
 /**
  * @swagger
  * /api/admin/customers:
+ * /api/admin/customers:
  *   get:
  *     summary: List customers
  *     tags: [Admin]
@@ -276,6 +353,7 @@ router.put('/complaints/:id/resolve', resolveComplaint);
 router.get('/customers', listCustomers);
 /**
  * @swagger
+ * /api/admin/customers/{id}:
  * /api/admin/customers/{id}:
  *   get:
  *     summary: Get customer details
@@ -300,6 +378,7 @@ router.get('/customers/:id', getCustomer);
 /**
  * @swagger
  * /api/admin/staff:
+ * /api/admin/staff:
  *   get:
  *     summary: List staff
  *     tags: [Admin]
@@ -314,6 +393,7 @@ router.get('/customers/:id', getCustomer);
 router.get('/staff', listStaff);
 /**
  * @swagger
+ * /api/admin/staff:
  * /api/admin/staff:
  *   post:
  *     summary: Create or update a staff member
@@ -355,6 +435,7 @@ router.get('/staff', listStaff);
 router.post('/staff', upsertStaff);
 /**
  * @swagger
+ * /api/admin/staff/{id}:
  * /api/admin/staff/{id}:
  *   put:
  *     summary: Update a staff member
@@ -631,7 +712,7 @@ router.post('/subscriptions/plans', upsertPlan);
 router.put('/subscriptions/plans/:id', upsertPlan);
 /**
  * @swagger
- * /api/admin/reports/overview:
+ * api/admin/reports/overview:
  *   get:
  *     summary: Get overview reports
  *     tags: [Admin]
@@ -646,7 +727,7 @@ router.put('/subscriptions/plans/:id', upsertPlan);
 router.get('/reports/overview', reportsOverview);
 /**
  * @swagger
- * /api/admin/reports/usage:
+ * api/admin/reports/usage:
  *   get:
  *     summary: Get usage reports
  *     tags: [Admin]
@@ -661,7 +742,7 @@ router.get('/reports/overview', reportsOverview);
 router.get('/reports/usage', reportsUsage);
 /**
  * @swagger
- * /api/admin/ai/predictions:
+ * api/admin/ai/predictions:
  *   get:
  *     summary: Get AI predictions
  *     tags: [Admin]

@@ -3,10 +3,6 @@ const router = express.Router();
 const { authenticate } = require('../../middlewares/auth/auth.middleware');
 const { createVnpayPayment, vnpayReturn, vnpayIpn } = require('../../controllers/payment/payment.controller');
 
-router.post('/vnpay/create', authenticate, createVnpayPayment);
-router.get('/vnpay/return', vnpayReturn);
-router.get('/vnpay/ipn', vnpayIpn);
-
 /**
  * @swagger
  * tags:
@@ -46,28 +42,55 @@ router.get('/vnpay/ipn', vnpayIpn);
  *     responses:
  *       201:
  *         description: Payment created with VNPay URL
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
  */
+router.post('/vnpay/create', authenticate, createVnpayPayment);
 
 /**
  * @swagger
  * /api/payments/vnpay/return:
  *   get:
  *     summary: VNPay return URL
+ *     description: Handles the return from VNPay after payment completion
  *     tags: [Payments]
+ *     parameters:
+ *       - in: query
+ *         name: vnp_ResponseCode
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: vnp_TxnRef
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
  *         description: Return handled
  */
+router.get('/vnpay/return', vnpayReturn);
 
 /**
  * @swagger
  * /api/payments/vnpay/ipn:
  *   get:
  *     summary: VNPay IPN callback
+ *     description: Handles VNPay Instant Payment Notification
  *     tags: [Payments]
+ *     parameters:
+ *       - in: query
+ *         name: vnp_ResponseCode
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: vnp_TxnRef
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
  *         description: IPN received
  */
+router.get('/vnpay/ipn', vnpayIpn);
 
 module.exports = router;
