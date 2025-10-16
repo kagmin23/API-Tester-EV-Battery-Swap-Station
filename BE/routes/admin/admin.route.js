@@ -20,7 +20,7 @@ router.use(authenticate, authorizeRoles('admin'));
 
 /**
  * @swagger
- * api/admin/stations:
+ * /api/admin/stations:
  *   get:
  *     summary: List all stations
  *     tags: [Admin]
@@ -154,7 +154,7 @@ router.get('/stations', listStations);
 router.post('/stations', createStation);
 /**
  * @swagger
- * api/admin/stations/{id}:
+ * /api/admin/stations/{id}:
  *   get:
  *     summary: Get station details
  *     tags: [Admin]
@@ -177,7 +177,7 @@ router.post('/stations', createStation);
 router.get('/stations/:id', getStation);
 /**
  * @swagger
- * api/admin/stations/transfer:
+ * /api/admin/stations/transfer:
  *   post:
  *     summary: Transfer batteries between stations
  *     tags: [Admin]
@@ -201,7 +201,7 @@ router.get('/stations/:id', getStation);
 router.post('/stations/transfer', transferBatteries);
 /**
  * @swagger
- * api/admin/batteries/faulty:
+ * /api/admin/batteries/faulty:
  *   get:
  *     summary: List faulty batteries
  *     tags: [Admin]
@@ -216,7 +216,7 @@ router.post('/stations/transfer', transferBatteries);
 router.get('/batteries/faulty', listFaultyBatteries);
 /**
  * @swagger
- * api/admin/complaints:
+ * /api/admin/complaints:
  *   get:
  *     summary: List customer complaints
  *     tags: [Admin]
@@ -231,7 +231,7 @@ router.get('/batteries/faulty', listFaultyBatteries);
 router.get('/complaints', listComplaints);
 /**
  * @swagger
- * api/admin/complaints/{id}/resolve:
+ * /api/admin/complaints/{id}/resolve:
  *   put:
  *     summary: Resolve a complaint
  *     tags: [Admin]
@@ -256,7 +256,7 @@ router.get('/complaints', listComplaints);
 router.put('/complaints/:id/resolve', resolveComplaint);
 /**
  * @swagger
- * api/admin/customers:
+ * /api/admin/customers:
  *   get:
  *     summary: List customers
  *     tags: [Admin]
@@ -271,7 +271,7 @@ router.put('/complaints/:id/resolve', resolveComplaint);
 router.get('/customers', listCustomers);
 /**
  * @swagger
- * api/admin/customers/{id}:
+ * /api/admin/customers/{id}:
  *   get:
  *     summary: Get customer details
  *     tags: [Admin]
@@ -294,7 +294,7 @@ router.get('/customers', listCustomers);
 router.get('/customers/:id', getCustomer);
 /**
  * @swagger
- * api/admin/staff:
+ * /api/admin/staff:
  *   get:
  *     summary: List staff
  *     tags: [Admin]
@@ -309,7 +309,7 @@ router.get('/customers/:id', getCustomer);
 router.get('/staff', listStaff);
 /**
  * @swagger
- * api/admin/staff:
+ * /api/admin/staff:
  *   post:
  *     summary: Create or update a staff member
  *     tags: [Admin]
@@ -333,7 +333,7 @@ router.get('/staff', listStaff);
 router.post('/staff', upsertStaff);
 /**
  * @swagger
- * api/admin/staff/{id}:
+ * /api/admin/staff/{id}:
  *   put:
  *     summary: Update a staff member
  *     tags: [Admin]
@@ -365,7 +365,7 @@ router.post('/staff', upsertStaff);
 router.put('/staff/:id', upsertStaff);
 /**
  * @swagger
- * api/admin/subscriptions/plans:
+ * /api/admin/subscriptions/plans:
  *   get:
  *     summary: List subscription plans
  *     tags: [Admin]
@@ -380,7 +380,7 @@ router.put('/staff/:id', upsertStaff);
 router.get('/subscriptions/plans', listPlans);
 /**
  * @swagger
- * api/admin/subscriptions/plans:
+ * /api/admin/subscriptions/plans:
  *   post:
  *     summary: Create or update a subscription plan
  *     tags: [Admin]
@@ -404,7 +404,7 @@ router.get('/subscriptions/plans', listPlans);
 router.post('/subscriptions/plans', upsertPlan);
 /**
  * @swagger
- * api/admin/subscriptions/plans/{id}:
+ * /api/admin/subscriptions/plans/{id}:
  *   put:
  *     summary: Update a subscription plan
  *     tags: [Admin]
