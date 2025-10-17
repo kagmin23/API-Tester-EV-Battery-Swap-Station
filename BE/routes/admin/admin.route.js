@@ -3,6 +3,10 @@ const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
 const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions, createStation, changeUserRole, changeUserStatus } = require('../../controllers/admin/admin.controller');
 
+// Public endpoint: list stations is accessible to unauthenticated users (e.g., drivers)
+router.get('/stations', listStations);
+
+// Protect the remaining admin routes
 router.use(authenticate, authorizeRoles('admin'));
 
 /**
@@ -226,7 +230,7 @@ router.post('/stations/transfer', transferBatteries);
 router.get('/batteries/faulty', listFaultyBatteries);
 /**
  * @swagger
- * /api/api/admin/batteries:
+ * /api/admin/batteries:
  *   get:
  *     summary: List all batteries (admin)
  *     tags: [Admin]
