@@ -6,7 +6,6 @@ const { listStations, getStation, transferBatteries, listFaultyBatteries, listCo
 // Public endpoint: list stations is accessible to unauthenticated users (e.g., drivers)
 router.get('/stations', listStations);
 
-// Protect the remaining admin routes
 router.use(authenticate, authorizeRoles('admin'));
 
 /**

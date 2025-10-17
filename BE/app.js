@@ -18,6 +18,7 @@ const bookingRoutes = require("./routes/booking/booking.route");
 const supportRoutes = require("./routes/support/support.route");
 const staffRoutes = require("./routes/staff/staff.route");
 const adminRoutes = require("./routes/admin/admin.route");
+const batteryRoutes = require("./routes/battery/battery.route");
 const paymentRoutes = require("./routes/payment/payment.route");
 var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
@@ -79,6 +80,7 @@ app.use("/api/booking", bookingRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/batteries", batteryRoutes);
 app.use("/api/payments", paymentRoutes);
 
 // catch 404 and forward to error handler
