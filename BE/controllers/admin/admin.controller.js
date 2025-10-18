@@ -225,7 +225,7 @@ const upsertStaff = async (req, res) => {
       await user.save();
     } else {
       // Create staff by email (no verification needed)
-      const exists = await User.findOne({ $or: [ { email: body.email }, { phoneNumber: body.phoneNumber } ] });
+      const exists = await User.findOne({ $or: [{ email: body.email }, { phoneNumber: body.phoneNumber }] });
       if (exists) {
         return res
           .status(409)
@@ -404,6 +404,49 @@ const assignStaffToStation = async (req, res) => {
   }
 };
 
+// Remove staff from station (admin only)
+const removeStaffFromStation = async (req, res) => {
+  try {
+    const { id: stationId, staffId } = req.params;
+
+    // Check if station exists
+    const station = await Station.findById(stationId);
+    if (!station) {
+      return res.status(404).json({ success: false, message: 'Station not found' });
+    }
+
+    // Check if staff exists and is assigned to this station
+    const staff = await User.findById(staffId);
+    if (!staff) {
+      return res.status(404).json({ success: false, message: 'Staff not found' });
+    }
+
+    if (staff.role !== 'staff') {
+      return res.status(400).json({ success: false, message: 'User is not a staff member' });
+    }
+
+    if (staff.station?.toString() !== stationId) {
+      return res.status(400).json({ success: false, message: 'Staff is not assigned to this station' });
+    }
+
+    // Remove staff from station
+    staff.station = null;
+    await staff.save();
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        staffId: staff._id,
+        stationId: stationId,
+        message: 'Staff removed from station successfully'
+      },
+      message: 'Staff removed from station'
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
 // Delete staff account by id (admin only)
 const deleteStaff = async (req, res) => {
   try {
@@ -490,4 +533,5 @@ module.exports = {
   changeUserRole,
   changeUserStatus,
   assignStaffToStation,
+  removeStaffFromStation,
 };

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions, createStation, changeUserRole, changeUserStatus, assignStaffToStation } = require('../../controllers/admin/admin.controller');
+const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions, createStation, changeUserRole, changeUserStatus, assignStaffToStation, removeStaffFromStation } = require('../../controllers/admin/admin.controller');
 
 // Public endpoint: list stations is accessible to unauthenticated users (e.g., drivers)
 router.get('/stations', listStations);
@@ -217,6 +217,36 @@ router.get('/stations/:id', getStation);
  *         description: Station or staff not found
  */
 router.post('/stations/:id/assign-staff', assignStaffToStation);
+/**
+ * @swagger
+ * /api/admin/stations/{id}/staff/{staffId}:
+ *   delete:
+ *     summary: Remove staff from station (admin)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Station id
+ *       - in: path
+ *         name: staffId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Staff id to remove
+ *     responses:
+ *       200:
+ *         description: Staff removed from station
+ *       400:
+ *         description: Invalid input or staff not assigned to station
+ *       404:
+ *         description: Station or staff not found
+ */
+router.delete('/stations/:id/staff/:staffId', removeStaffFromStation);
 /**
  * @swagger
  * /api/admin/stations/transfer:
