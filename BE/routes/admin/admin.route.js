@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions, createStation, changeUserRole, changeUserStatus } = require('../../controllers/admin/admin.controller');
+const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, reportsOverview, reportsUsage, aiPredictions, createStation, changeUserRole, changeUserStatus, assignStaffToStation } = require('../../controllers/admin/admin.controller');
 
 // Public endpoint: list stations is accessible to unauthenticated users (e.g., drivers)
 router.get('/stations', listStations);
@@ -178,6 +178,45 @@ router.post('/stations', createStation);
  *         description: Unauthorized
  */
 router.get('/stations/:id', getStation);
+/**
+ * @swagger
+ * /api/admin/stations/{id}/assign-staff:
+ *   post:
+ *     summary: Assign staff to a station (admin)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Station id
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               staffId:
+ *                 type: string
+ *                 description: Single staff id to assign
+ *               staffIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Multiple staff ids to assign
+ *     responses:
+ *       200:
+ *         description: Staff assigned to station
+ *       400:
+ *         description: Invalid input
+ *       404:
+ *         description: Station or staff not found
+ */
+router.post('/stations/:id/assign-staff', assignStaffToStation);
 /**
  * @swagger
  * /api/admin/stations/transfer:

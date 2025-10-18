@@ -371,6 +371,39 @@ const createStation = async (req, res) => {
   }
 };
 
+// Assign one or multiple staff members to a station (admin only)
+const assignStaffToStationSchema = z.object({
+  staffIds: z.array(z.string()).optional(),
+  staffId: z.string().optional(),
+});
+const assignStaffToStation = async (req, res) => {
+  try {
+    const { id } = req.params; // station id
+    const body = assignStaffToStationSchema.parse(req.body);
+    const station = await Station.findById(id);
+    if (!station) return res.status(404).json({ success: false, message: 'Station not found' });
+
+    const ids = (body.staffIds && body.staffIds.length) ? body.staffIds : (body.staffId ? [body.staffId] : []);
+    if (!ids.length) return res.status(400).json({ success: false, message: 'Provide staffId or staffIds' });
+
+    // Fetch users and validate
+    const users = await User.find({ _id: { $in: ids } });
+    const missing = ids.filter(i => !users.some(u => u._id.toString() === i));
+    if (missing.length) return res.status(404).json({ success: false, message: `Users not found: ${missing.join(',')}` });
+
+    const notStaff = users.filter(u => u.role !== 'staff').map(u => u._id.toString());
+    if (notStaff.length) return res.status(400).json({ success: false, message: `Users are not staff: ${notStaff.join(',')}` });
+
+    // Assign station to the staff members
+    await User.updateMany({ _id: { $in: ids } }, { $set: { station: station._id } });
+    const updated = await User.find({ _id: { $in: ids } }).select('-password');
+    return res.status(200).json({ success: true, data: updated, message: 'Staff assigned to station' });
+  } catch (err) {
+    if (err instanceof ZodError) return res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Invalid input' });
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
 // Delete staff account by id (admin only)
 const deleteStaff = async (req, res) => {
   try {
@@ -456,4 +489,5 @@ module.exports = {
   createStation,
   changeUserRole,
   changeUserStatus,
+  assignStaffToStation,
 };
