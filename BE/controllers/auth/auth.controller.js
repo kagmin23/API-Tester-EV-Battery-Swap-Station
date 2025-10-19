@@ -90,6 +90,7 @@ const login = async (req, res) => {
           phoneNumber: user.phoneNumber,
           role: user.role,
           avatar: user.avatar || null,
+          station : user.station || null,
         },
       },
       message: "Login successfully",
