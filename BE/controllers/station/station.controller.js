@@ -13,23 +13,34 @@ const nearbySchema = z.object({
 const listNearbyStations = async (req, res) => {
   try {
     const { lat, lng, radius, limit } = nearbySchema.parse(req.query);
-    const stations = await Station.find({
-      location: {
-        $near: {
-          $geometry: { type: 'Point', coordinates: [lng, lat] },
-          $maxDistance: radius,
+
+    const stations = await Station.aggregate([
+      {
+        $geoNear: {
+          near: { type: 'Point', coordinates: [lng, lat] },
+          distanceField: 'distance',
+          maxDistance: radius,
+          spherical: true,
         },
       },
-    }).limit(limit);
-    return res.status(200).json({ success: true, data: stations });
+      { $limit: limit },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      radius,
+      count: stations.length,
+      data: stations.map((s) => ({
+        ...s,
+        distanceKm: (s.distance / 1000).toFixed(2), // 👉 chuyển sang km
+      })),
+    });
   } catch (err) {
     if (err instanceof ZodError) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: err.errors?.[0]?.message || "Invalid query",
-        });
+      return res.status(400).json({
+        success: false,
+        message: err.errors?.[0]?.message || "Invalid query",
+      });
     }
     return res.status(400).json({ success: false, message: err.message });
   }
