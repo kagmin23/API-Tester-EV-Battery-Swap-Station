@@ -27,18 +27,19 @@ router.use(authenticate);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [station_id, scheduled_time]
+ *             required: [station_id, vehicle_id, scheduled_time]
  *             properties:
  *               station_id:
  *                 type: string
  *                 description: Target station ObjectId
+ *               vehicle_id:
+ *                 type: string
+ *                 description: Vehicle ObjectId that belongs to the user
  *               scheduled_time:
  *                 type: string
  *                 format: date-time
  *                 description: ISO date-time when you plan to arrive
- *               notes:
- *                 type: string
- *                 description: Optional note for staff
+ *               
  *     responses:
  *       201:
  *         description: Booking created

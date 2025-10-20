@@ -1,8 +1,9 @@
 const { z, ZodError } = require('zod');
 const Booking = require('../../models/booking/booking.model');
 const Station = require('../../models/station/station.model');
+const Vehicle = require('../../models/vehicle/vehicle.model');
 
-const createSchema = z.object({ station_id: z.string(), scheduled_time: z.coerce.date(), notes: z.string().optional() });
+const createSchema = z.object({ station_id: z.string(), vehicle_id: z.string(), scheduled_time: z.coerce.date() });
 
 const createBooking = async (req, res) => {
   try {
@@ -10,12 +11,16 @@ const createBooking = async (req, res) => {
     const station = await Station.findById(body.station_id);
     if (!station) return res.status(404).json({ success: false, message: 'Station not found' });
 
+    // Validate vehicle exists and belongs to user
+    const vehicle = await Vehicle.findOne({ vehicleId: body.vehicle_id, user: req.user.id });
+    if (!vehicle) return res.status(404).json({ success: false, message: 'Vehicle not found or does not belong to you' });
+
     const booking = await Booking.create({
       user: req.user.id,
       station: station._id,
+      vehicle: body.vehicle_id,
       scheduledTime: body.scheduled_time,
       status: 'pending',
-      notes: body.notes,
     });
 
     return res.status(201).json({
@@ -24,6 +29,7 @@ const createBooking = async (req, res) => {
         booking_id: booking.bookingId,
         user_id: booking.user.toString(),
         station_id: booking.station.toString(),
+        vehicle_id: booking.vehicle.toString(),
         scheduled_time: booking.scheduledTime,
         status: booking.status,
       },
@@ -44,6 +50,7 @@ const listBookings = async (req, res) => {
       booking_id: b.bookingId,
       user_id: b.user.toString(),
       station_id: b.station.toString(),
+      vehicle_id: b.vehicle.toString(),
       scheduled_time: b.scheduledTime,
       status: b.status,
       created_at: b.createdAt,
@@ -73,15 +80,17 @@ const getBookingDetail = async (req, res) => {
     const { id } = req.params;
     const b = await Booking.findOne({ bookingId: id, user: req.user.id });
     if (!b) return res.status(404).json({ success: false, message: 'Booking not found' });
-    return res.status(200).json({ success: true, data: {
-      booking_id: b.bookingId,
-      user_id: b.user.toString(),
-      station_id: b.station.toString(),
-      scheduled_time: b.scheduledTime,
-      status: b.status,
-      created_at: b.createdAt,
-      notes: b.notes,
-    } });
+    return res.status(200).json({
+      success: true, data: {
+        booking_id: b.bookingId,
+        user_id: b.user.toString(),
+        station_id: b.station.toString(),
+        scheduled_time: b.scheduledTime,
+        status: b.status,
+        created_at: b.createdAt,
+        notes: b.notes,
+      }
+    });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
