@@ -319,6 +319,30 @@ const upsertPlan = async (req, res) => {
   }
 };
 
+// Delete subscription plan (admin only)
+const deletePlan = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Check if plan exists
+    const plan = await SubscriptionPlan.findById(id);
+    if (!plan) {
+      return res.status(404).json({ success: false, message: 'Subscription plan not found' });
+    }
+
+    // Delete the plan
+    await SubscriptionPlan.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      success: true,
+      data: { id },
+      message: 'Subscription plan deleted successfully'
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
 const reportsOverview = async (req, res) => {
   return res
     .status(200)
@@ -526,6 +550,7 @@ module.exports = {
   deleteStaff,
   listPlans,
   upsertPlan,
+  deletePlan,
   reportsOverview,
   reportsUsage,
   aiPredictions,
