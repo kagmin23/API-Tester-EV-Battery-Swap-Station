@@ -9,7 +9,7 @@ exports.createBattery = async (req, res) => {
       serial: z.string().min(1),
       model: z.string().optional(),
       soh: z.number().min(0).max(100).optional(),
-      status: z.enum(['charging', 'full', 'faulty', 'in-use', 'idle']).optional(),
+      status: z.enum(['charging', 'full', 'faulty', 'in-use', 'idle', 'is-booking']).optional(),
       stationId: z.string().optional(),
       manufacturer: z.string().optional(),
       capacity_kWh: z.number().min(0).optional(),
@@ -60,7 +60,7 @@ exports.updateBattery = async (req, res) => {
     const schema = z.object({
       model: z.string().optional(),
       soh: z.number().min(0).max(100).optional(),
-      status: z.enum(['charging', 'full', 'faulty', 'in-use', 'idle']).optional(),
+      status: z.enum(['charging', 'full', 'faulty', 'in-use', 'idle', 'is-booking']).optional(),
       stationId: z.string().optional(),
       manufacturer: z.string().optional(),
       capacity_kWh: z.number().min(0).optional(),
@@ -126,5 +126,193 @@ exports.getModelBatteries = async (req, res) => {
     return res.json({ success: true, data: batteries });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// Public: get all batteries in a specific station
+exports.getBatteriesByStation = async (req, res) => {
+  try {
+    const { stationId } = req.params;
+
+    // Validate station exists
+    const station = await Station.findById(stationId);
+    if (!station) {
+      return res.status(404).json({
+        success: false,
+        message: 'Station not found'
+      });
+    }
+
+    // Get all batteries in this station
+    const batteries = await Battery.find({ station: stationId })
+      .populate('station', 'stationName address city district')
+      .sort({ status: 1, soh: -1 }); // Sort by status first, then by SOH descending
+
+    // Group batteries by status for better organization
+    const groupedBatteries = {
+      available: batteries.filter(b => b.status === 'idle' || b.status === 'full'),
+      charging: batteries.filter(b => b.status === 'charging'),
+      inUse: batteries.filter(b => b.status === 'in-use'),
+      faulty: batteries.filter(b => b.status === 'faulty')
+    };
+
+    // Calculate statistics
+    const stats = {
+      total: batteries.length,
+      available: groupedBatteries.available.length,
+      charging: groupedBatteries.charging.length,
+      inUse: groupedBatteries.inUse.length,
+      faulty: groupedBatteries.faulty.length,
+      averageSoh: batteries.length > 0 ?
+        Math.round(batteries.reduce((sum, b) => sum + b.soh, 0) / batteries.length) : 0
+    };
+
+    return res.json({
+      success: true,
+      data: {
+        station: {
+          id: station._id,
+          name: station.stationName,
+          address: station.address,
+          city: station.city,
+          district: station.district
+        },
+        batteries: batteries,
+        grouped: groupedBatteries,
+        statistics: stats
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+// Admin: Update battery counts for a specific station
+exports.updateStationBatteryCounts = async (req, res) => {
+  try {
+    const { stationId } = req.params;
+
+    const station = await Station.findById(stationId);
+    if (!station) {
+      return res.status(404).json({
+        success: false,
+        message: 'Station not found'
+      });
+    }
+
+    const updatedStation = await station.updateBatteryCounts();
+
+    return res.json({
+      success: true,
+      data: {
+        station: {
+          id: updatedStation._id,
+          name: updatedStation.stationName,
+          capacity: updatedStation.capacity,
+          sohAvg: updatedStation.sohAvg
+        },
+        batteryCounts: updatedStation.batteryCounts,
+        availableBatteries: updatedStation.availableBatteries
+      },
+      message: 'Battery counts updated successfully'
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+// Admin: Update battery counts for all stations
+exports.updateAllStationsBatteryCounts = async (req, res) => {
+  try {
+    const updatedStations = await Station.updateAllBatteryCounts();
+
+    const summary = updatedStations.map(station => ({
+      id: station._id,
+      name: station.stationName,
+      batteryCounts: station.batteryCounts,
+      sohAvg: station.sohAvg
+    }));
+
+    return res.json({
+      success: true,
+      data: {
+        updatedStations: summary,
+        totalStations: updatedStations.length
+      },
+      message: 'All stations battery counts updated successfully'
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+// Public: Get station battery management info
+exports.getStationBatteryManagement = async (req, res) => {
+  try {
+    const { stationId } = req.params;
+
+    const station = await Station.findById(stationId);
+    if (!station) {
+      return res.status(404).json({
+        success: false,
+        message: 'Station not found'
+      });
+    }
+
+    // Get detailed battery information
+    const batteries = await Battery.find({ station: stationId })
+      .sort({ status: 1, soh: -1 });
+
+    // Calculate utilization percentage
+    const utilizationPercentage = station.capacity > 0 ?
+      Math.round((station.batteryCounts.total / station.capacity) * 100) : 0;
+
+    // Calculate health score based on SOH and status
+    const healthScore = station.batteryCounts.total > 0 ?
+      Math.round((station.sohAvg * 0.7) +
+        ((station.batteryCounts.available / station.batteryCounts.total) * 30)) : 0;
+
+    return res.json({
+      success: true,
+      data: {
+        station: {
+          id: station._id,
+          name: station.stationName,
+          address: station.address,
+          city: station.city,
+          district: station.district
+        },
+        capacity: {
+          maxCapacity: station.capacity,
+          currentTotal: station.batteryCounts.total,
+          utilizationPercentage: utilizationPercentage,
+          availableSlots: station.capacity - station.batteryCounts.total
+        },
+        batteryCounts: station.batteryCounts,
+        health: {
+          averageSoh: station.sohAvg,
+          healthScore: healthScore,
+          status: healthScore >= 80 ? 'Excellent' :
+            healthScore >= 60 ? 'Good' :
+              healthScore >= 40 ? 'Fair' : 'Poor'
+        },
+        batteries: batteries,
+        lastUpdated: station.updatedAt
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
   }
 };

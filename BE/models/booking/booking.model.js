@@ -6,6 +6,7 @@ const bookingSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   vehicle: { type: String, ref: 'Vehicle', required: true, index: true },
   station: { type: mongoose.Schema.Types.ObjectId, ref: 'Station', required: true, index: true },
+  battery: { type: mongoose.Schema.Types.ObjectId, ref: 'Battery', required: true, index: true },
   scheduledTime: { type: Date, required: true },
   status: { type: String, enum: ['pending', 'confirmed', 'cancelled', 'completed'], default: 'pending', index: true },
 
