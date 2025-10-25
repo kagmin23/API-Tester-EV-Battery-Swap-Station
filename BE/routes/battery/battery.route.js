@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { createBattery, getBattery, updateBattery, deleteBattery, listBatteriesAdmin, getModelBatteries } = require('../../controllers/battery/battery.controller');
+const { createBattery, getBattery, updateBattery, deleteBattery, listBatteriesAdmin, getModelBatteries, getBatteriesByStation, updateStationBatteryCounts, updateAllStationsBatteryCounts, getStationBatteryManagement } = require('../../controllers/battery/battery.controller');
 
 /**
  * @swagger
@@ -74,6 +74,267 @@ router.get('/model', getModelBatteries);
  *         description: Battery not found
  */
 router.get('/:id', getBattery);
+
+/**
+ * @swagger
+ * /api/batteries/station/{stationId}:
+ *   get:
+ *     summary: Public - Get all batteries in a specific station
+ *     tags: [Batteries]
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Station ObjectId
+ *     responses:
+ *       200:
+ *         description: List of batteries in the station with statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     station:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         address:
+ *                           type: string
+ *                         city:
+ *                           type: string
+ *                         district:
+ *                           type: string
+ *                     batteries:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           _id:
+ *                             type: string
+ *                           serial:
+ *                             type: string
+ *                           model:
+ *                             type: string
+ *                           soh:
+ *                             type: number
+ *                           status:
+ *                             type: string
+ *                             enum: [charging, full, faulty, in-use, idle]
+ *                           manufacturer:
+ *                             type: string
+ *                           capacity_kWh:
+ *                             type: number
+ *                           voltage:
+ *                             type: number
+ *                     grouped:
+ *                       type: object
+ *                       properties:
+ *                         available:
+ *                           type: array
+ *                         charging:
+ *                           type: array
+ *                         inUse:
+ *                           type: array
+ *                         faulty:
+ *                           type: array
+ *                     statistics:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: number
+ *                         available:
+ *                           type: number
+ *                         charging:
+ *                           type: number
+ *                         inUse:
+ *                           type: number
+ *                         faulty:
+ *                           type: number
+ *                         averageSoh:
+ *                           type: number
+ *       404:
+ *         description: Station not found
+ */
+router.get('/station/:stationId', getBatteriesByStation);
+
+/**
+ * @swagger
+ * /api/batteries/station/{stationId}/management:
+ *   get:
+ *     summary: Public - Get station battery management info
+ *     tags: [Batteries]
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Station ObjectId
+ *     responses:
+ *       200:
+ *         description: Station battery management information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     station:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         address:
+ *                           type: string
+ *                         city:
+ *                           type: string
+ *                         district:
+ *                           type: string
+ *                     capacity:
+ *                       type: object
+ *                       properties:
+ *                         maxCapacity:
+ *                           type: number
+ *                         currentTotal:
+ *                           type: number
+ *                         utilizationPercentage:
+ *                           type: number
+ *                         availableSlots:
+ *                           type: number
+ *                     batteryCounts:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: number
+ *                         available:
+ *                           type: number
+ *                         charging:
+ *                           type: number
+ *                         inUse:
+ *                           type: number
+ *                         faulty:
+ *                           type: number
+ *                     health:
+ *                       type: object
+ *                       properties:
+ *                         averageSoh:
+ *                           type: number
+ *                         healthScore:
+ *                           type: number
+ *                         status:
+ *                           type: string
+ *                           enum: [Excellent, Good, Fair, Poor]
+ *                     batteries:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     lastUpdated:
+ *                       type: string
+ *                       format: date-time
+ *       404:
+ *         description: Station not found
+ */
+router.get('/station/:stationId/management', getStationBatteryManagement);
+
+/**
+ * @swagger
+ * /api/batteries/station/{stationId}/available:
+ *   get:
+ *     summary: Public - Get available batteries for booking at a station
+ *     tags: [Batteries]
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Station ObjectId
+ *       - in: query
+ *         name: scheduledTime
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Optional scheduled time to check for conflicts
+ *     responses:
+ *       200:
+ *         description: List of available batteries for booking
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     station:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                         name:
+ *                           type: string
+ *                         address:
+ *                           type: string
+ *                         city:
+ *                           type: string
+ *                         district:
+ *                           type: string
+ *                     availableBatteries:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           serial:
+ *                             type: string
+ *                           model:
+ *                             type: string
+ *                           soh:
+ *                             type: number
+ *                           status:
+ *                             type: string
+ *                           manufacturer:
+ *                             type: string
+ *                           capacity_kWh:
+ *                             type: number
+ *                           voltage:
+ *                             type: number
+ *                           healthStatus:
+ *                             type: string
+ *                             enum: [Excellent, Good, Fair, Poor]
+ *                     totalAvailable:
+ *                       type: number
+ *                     scheduledTime:
+ *                       type: string
+ *                       format: date-time
+ *                     lastUpdated:
+ *                       type: string
+ *                       format: date-time
+ *       404:
+ *         description: Station not found
+ */
 
 // Protect admin battery management routes
 router.use(authenticate, authorizeRoles('admin'));
@@ -277,5 +538,42 @@ router.put('/:id', updateBattery);
  *         description: Battery not found
  */
 router.delete('/:id', deleteBattery);
+
+/**
+ * @swagger
+ * /api/batteries/station/{stationId}/update-counts:
+ *   put:
+ *     summary: Admin - Update battery counts for a specific station
+ *     tags: [Batteries]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Station ObjectId
+ *     responses:
+ *       200:
+ *         description: Battery counts updated successfully
+ *       404:
+ *         description: Station not found
+ */
+router.put('/station/:stationId/update-counts', updateStationBatteryCounts);
+
+/**
+ * @swagger
+ * /api/batteries/update-all-counts:
+ *   put:
+ *     summary: Admin - Update battery counts for all stations
+ *     tags: [Batteries]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All stations battery counts updated successfully
+ */
+router.put('/update-all-counts', updateAllStationsBatteryCounts);
 
 module.exports = router;
