@@ -1,6 +1,7 @@
 const Station = require('../../models/station/station.model');
 const Battery = require('../../models/battery/battery.model');
 const BatteryHistory = require('../../models/battery/batteryHistory.model');
+const Booking = require('../../models/booking/booking.model');
 const Payment = require('../../models/payment/payment.model');
 const { z, ZodError } = require('zod');
 const User = require('../../models/auth/auth.model');
@@ -53,12 +54,126 @@ const updateBattery = async (req, res) => {
   }
 };
 
-// Placeholders for swap requests and returns (details depend on later models)
 const listSwapRequests = async (req, res) => {
-  return res.status(200).json({ success: true, data: [], message: 'Not implemented: depends on swap models' });
+  try {
+    let stationId = null;
+    if (req.user && req.user.role === 'staff') {
+      stationId = req.user.station;
+      if (!stationId) {
+        const staffUser = await User.findById(req.user.id).select('station role');
+        if (!staffUser) return res.status(401).json({ success: false, message: 'Unauthorized' });
+        if (staffUser.role !== 'staff') return res.status(403).json({ success: false, message: 'Forbidden' });
+        stationId = staffUser.station;
+        if (!stationId) return res.status(400).json({ success: false, message: 'Staff not assigned to a station' });
+      }
+    } else {
+      stationId = req.query.stationId || null;
+    }
+
+    const filter = { status: 'pending' };
+    if (stationId) filter.station = stationId;
+
+    const bookings = await Booking.find(filter)
+      .populate('user', 'fullName phoneNumber')
+      .populate('battery', 'serial model soh status manufacturer capacity_kWh voltage')
+      .populate('station', 'stationName address city district')
+      .sort({ createdAt: -1 });
+
+    const data = bookings.map(b => ({
+      booking_id: b.bookingId,
+      user: b.user ? { id: b.user._id, name: b.user.fullName, phone: b.user.phoneNumber } : null,
+      vehicle_id: b.vehicle ? b.vehicle.toString() : null,
+      station_id: b.station ? b.station._id.toString() : null,
+      station_name: b.station ? b.station.stationName : null,
+      battery_id: b.battery ? b.battery._id.toString() : null,
+      battery_info: b.battery ? {
+        serial: b.battery.serial,
+        model: b.battery.model,
+        soh: b.battery.soh,
+        status: b.battery.status,
+        manufacturer: b.battery.manufacturer,
+        capacity_kWh: b.battery.capacity_kWh,
+        voltage: b.battery.voltage
+      } : null,
+      scheduled_time: b.scheduledTime,
+      status: b.status,
+      created_at: b.createdAt,
+    }));
+
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
 };
-const confirmSwapRequest = async (req, res) => { return res.status(200).json({ success: true, data: null, message: 'Swap confirmed (demo)' }); };
-const recordSwapReturn = async (req, res) => { return res.status(200).json({ success: true, data: null, message: 'Swap return recorded (demo)' }); };
+
+const confirmSwapRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const filter = { bookingId: id, status: 'pending' };
+    if (req.user && req.user.role === 'staff') {
+      let staffStation = req.user.station;
+      if (!staffStation) {
+        const staffUser = await User.findById(req.user.id).select('station role');
+        if (!staffUser) return res.status(401).json({ success: false, message: 'Unauthorized' });
+        if (staffUser.role !== 'staff') return res.status(403).json({ success: false, message: 'Forbidden' });
+        staffStation = staffUser.station;
+      }
+      if (!staffStation) return res.status(400).json({ success: false, message: 'Staff not assigned to a station' });
+      filter.station = staffStation;
+    }
+
+    const booking = await Booking.findOne(filter);
+    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+
+    booking.status = 'confirmed';
+    await booking.save();
+
+    if (booking.battery) {
+      // mark battery as in-use
+      await Battery.findByIdAndUpdate(booking.battery, { status: 'in-use' });
+      await BatteryHistory.create({ battery: booking.battery, station: booking.station, action: 'swap', soh: null, details: `Swap confirmed by staff ${req.user.id}` });
+    }
+
+    return res.status(200).json({ success: true, data: null, message: 'Swap confirmed' });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// Record a returned swap battery (complete the booking)
+const recordSwapReturn = async (req, res) => {
+  try {
+    const { id } = req.params; // bookingId
+    const filter = { bookingId: id, status: 'confirmed' };
+    if (req.user && req.user.role === 'staff') {
+      let staffStation = req.user.station;
+      if (!staffStation) {
+        const staffUser = await User.findById(req.user.id).select('station role');
+        if (!staffUser) return res.status(401).json({ success: false, message: 'Unauthorized' });
+        if (staffUser.role !== 'staff') return res.status(403).json({ success: false, message: 'Forbidden' });
+        staffStation = staffUser.station;
+      }
+      if (!staffStation) return res.status(400).json({ success: false, message: 'Staff not assigned to a station' });
+      filter.station = staffStation;
+    }
+
+    const booking = await Booking.findOne(filter);
+    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found or not in confirmed state' });
+
+    booking.status = 'completed';
+    await booking.save();
+
+    if (booking.battery) {
+      // mark battery as idle (or charging depending on workflow)
+      await Battery.findByIdAndUpdate(booking.battery, { status: 'idle' });
+      await BatteryHistory.create({ battery: booking.battery, station: booking.station, action: 'return', soh: null, details: `Swap return recorded by staff ${req.user.id}` });
+    }
+
+    return res.status(200).json({ success: true, data: null, message: 'Swap return recorded' });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
 
 const stationPaymentSchema = z.object({ stationId: z.string(), amount: z.number().positive(), bookingId: z.string().optional() });
 const createStationPayment = async (req, res) => {
