@@ -179,4 +179,28 @@ const getBookingDetail = async (req, res) => {
   }
 };
 
-module.exports = { createBooking, listBookings, cancelBooking, getBookingDetail };
+// Driver completes a booking. Only the booking owner (driver) can mark as completed.
+const completeBooking = async (req, res) => {
+  try {
+    const { id } = req.params; // bookingId
+    const b = await Booking.findOne({ bookingId: id, user: req.user.id, status: 'confirmed' });
+    if (!b) return res.status(404).json({ success: false, message: 'Booking not found or not in confirmed state' });
+
+    b.status = 'completed';
+    await b.save();
+
+    if (b.battery) {
+      // mark battery as idle (driver returned battery)
+      await Battery.findByIdAndUpdate(b.battery, { status: 'idle' });
+      // Record battery history
+      const BatteryHistory = require('../../models/battery/batteryHistory.model');
+      await BatteryHistory.create({ battery: b.battery, station: b.station, action: 'return', details: `Completed by driver ${req.user.id}` });
+    }
+
+    return res.status(200).json({ success: true, data: null, message: 'Booking completed' });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { createBooking, listBookings, cancelBooking, getBookingDetail, completeBooking };

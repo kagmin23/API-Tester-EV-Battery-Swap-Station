@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../../middlewares/auth/auth.middleware');
-const { createBooking, listBookings, cancelBooking, getBookingDetail } = require('../../controllers/booking/booking.controller');
+const { createBooking, listBookings, cancelBooking, getBookingDetail, completeBooking } = require('../../controllers/booking/booking.controller');
 
 /**
  * @swagger
@@ -42,7 +42,7 @@ router.use(authenticate);
  *                 type: string
  *                 format: date-time
  *                 description: ISO date-time when you plan to arrive
- *              
+ *  
  *     responses:
  *       201:
  *         description: Booking created
@@ -92,6 +92,30 @@ router.get('/', listBookings);
  *         description: Unauthorized
  */
 router.put('/:id/cancel', cancelBooking);
+
+/**
+ * @swagger
+ * /api/booking/{id}/complete:
+ *   put:
+ *     summary: Complete a booking (driver)
+ *     tags: [Booking]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Booking completed
+ *       404:
+ *         description: Booking not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.put('/:id/complete', completeBooking);
 
 /**
  * @swagger
