@@ -8,6 +8,7 @@ const batterySchema = new mongoose.Schema({
   station: { type: mongoose.Schema.Types.ObjectId, ref: 'Station' },
   manufacturer: { type: String, trim: true },
   capacity_kWh: { type: Number, min: 0 },
+  price: { type: Number, min: 0, default: 0 },
   voltage: { type: Number, min: 0 },
 }, { timestamps: true });
 

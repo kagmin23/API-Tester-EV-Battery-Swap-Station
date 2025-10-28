@@ -1,7 +1,21 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { createBattery, getBattery, updateBattery, deleteBattery, listBatteriesAdmin, getModelBatteries, getBatteriesByStation, updateStationBatteryCounts, updateAllStationsBatteryCounts, getStationBatteryManagement } = require('../../controllers/battery/battery.controller');
+const {
+  authenticate,
+  authorizeRoles,
+} = require("../../middlewares/auth/auth.middleware");
+const {
+  createBattery,
+  getBattery,
+  updateBattery,
+  deleteBattery,
+  listBatteriesAdmin,
+  getModelBatteries,
+  getBatteriesByStation,
+  updateStationBatteryCounts,
+  updateAllStationsBatteryCounts,
+  getStationBatteryManagement,
+} = require("../../controllers/battery/battery.controller");
 
 /**
  * @swagger
@@ -23,6 +37,7 @@ const { createBattery, getBattery, updateBattery, deleteBattery, listBatteriesAd
  *           application/json:
  *             schema:
  *               type: object
+ *               required: [serial, price]
  *               properties:
  *                 success:
  *                   type: boolean
@@ -38,6 +53,8 @@ const { createBattery, getBattery, updateBattery, deleteBattery, listBatteriesAd
  *                         type: string
  *                       model:
  *                         type: string
+ *                       price:
+ *                         type: number
  *                       soh:
  *                         type: number
  *                       status:
@@ -52,7 +69,8 @@ const { createBattery, getBattery, updateBattery, deleteBattery, listBatteriesAd
  *                           address:
  *                             type: string
  */
-router.get('/model', getModelBatteries);
+
+router.get("/model", getModelBatteries);
 
 /**
  * @swagger
@@ -72,11 +90,6 @@ router.get('/model', getModelBatteries);
  *         description: Battery details
  *       404:
  *         description: Battery not found
- */
-router.get('/:id', getBattery);
-
-/**
- * @swagger
  * /api/batteries/station/{stationId}:
  *   get:
  *     summary: Public - Get all batteries in a specific station
@@ -90,7 +103,7 @@ router.get('/:id', getBattery);
  *         description: Station ObjectId
  *     responses:
  *       200:
- *         description: List of batteries in the station with statistics
+ *         description: Batteries list
  *         content:
  *           application/json:
  *             schema:
@@ -166,7 +179,7 @@ router.get('/:id', getBattery);
  *       404:
  *         description: Station not found
  */
-router.get('/station/:stationId', getBatteriesByStation);
+router.get("/station/:stationId", getBatteriesByStation);
 
 /**
  * @swagger
@@ -252,7 +265,7 @@ router.get('/station/:stationId', getBatteriesByStation);
  *       404:
  *         description: Station not found
  */
-router.get('/station/:stationId/management', getStationBatteryManagement);
+router.get("/station/:stationId/management", getStationBatteryManagement);
 
 /**
  * @swagger
@@ -319,6 +332,8 @@ router.get('/station/:stationId/management', getStationBatteryManagement);
  *                             type: string
  *                           capacity_kWh:
  *                             type: number
+ *                           price:
+ *                             type: number
  *                           voltage:
  *                             type: number
  *                           healthStatus:
@@ -337,7 +352,7 @@ router.get('/station/:stationId/management', getStationBatteryManagement);
  */
 
 // Protect admin battery management routes
-router.use(authenticate, authorizeRoles('admin'));
+router.use(authenticate, authorizeRoles("admin"));
 
 /**
  * @swagger
@@ -370,6 +385,8 @@ router.use(authenticate, authorizeRoles('admin'));
  *                 type: string
  *               capacity_kWh:
  *                 type: number
+ *               price:
+ *                 type: number
  *               voltage:
  *                 type: number
  *     responses:
@@ -378,7 +395,7 @@ router.use(authenticate, authorizeRoles('admin'));
  *       400:
  *         description: Invalid input
  */
-router.post('/', createBattery);
+router.post("/", createBattery);
 
 /**
  * @swagger
@@ -430,48 +447,7 @@ router.post('/', createBattery);
  *       200:
  *         description: Batteries list
  */
-router.get('/', listBatteriesAdmin);
-
-/**
- * @swagger
- * /api/batteries:
- *   post:
- *     summary: Admin - Create a new battery
- *     tags: [Batteries]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [serial]
- *             properties:
- *               serial:
- *                 type: string
- *               model:
- *                 type: string
- *               soh:
- *                 type: number
- *               status:
- *                 type: string
- *                 enum: [charging, full, faulty, in-use, idle]
- *               stationId:
- *                 type: string
- *               manufacturer:
- *                 type: string
- *               capacity_kWh:
- *                 type: number
- *               voltage:
- *                 type: number
- *     responses:
- *       201:
- *         description: Battery created
- *       400:
- *         description: Invalid input
- */
-router.post('/', createBattery);
+router.get("/", listBatteriesAdmin);
 
 /**
  * @swagger
@@ -509,13 +485,15 @@ router.post('/', createBattery);
  *                 type: number
  *               voltage:
  *                 type: number
+ *               price:
+ *                 type: number
  *     responses:
  *       200:
  *         description: Battery updated
  *       404:
  *         description: Battery not found
  */
-router.put('/:id', updateBattery);
+router.put("/:id", updateBattery);
 
 /**
  * @swagger
@@ -537,7 +515,7 @@ router.put('/:id', updateBattery);
  *       404:
  *         description: Battery not found
  */
-router.delete('/:id', deleteBattery);
+router.delete("/:id", deleteBattery);
 
 /**
  * @swagger
@@ -560,7 +538,7 @@ router.delete('/:id', deleteBattery);
  *       404:
  *         description: Station not found
  */
-router.put('/station/:stationId/update-counts', updateStationBatteryCounts);
+router.put("/station/:stationId/update-counts", updateStationBatteryCounts);
 
 /**
  * @swagger
@@ -574,6 +552,6 @@ router.put('/station/:stationId/update-counts', updateStationBatteryCounts);
  *       200:
  *         description: All stations battery counts updated successfully
  */
-router.put('/update-all-counts', updateAllStationsBatteryCounts);
+router.put("/update-all-counts", updateAllStationsBatteryCounts);
 
 module.exports = router;

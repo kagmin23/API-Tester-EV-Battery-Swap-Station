@@ -2,7 +2,6 @@ const Battery = require('../../models/battery/battery.model');
 const Station = require('../../models/station/station.model');
 const { z } = require('zod');
 
-// Admin: create a new battery
 exports.createBattery = async (req, res) => {
   try {
     const schema = z.object({
@@ -14,6 +13,7 @@ exports.createBattery = async (req, res) => {
       manufacturer: z.string().optional(),
       capacity_kWh: z.number().min(0).optional(),
       voltage: z.number().min(0).optional(),
+      price: z.number().min(0),
     });
 
     const payload = schema.parse(req.body);
@@ -23,6 +23,7 @@ exports.createBattery = async (req, res) => {
       model: payload.model,
       soh: payload.soh,
       status: payload.status,
+      price: payload.price,
       manufacturer: payload.manufacturer,
       capacity_kWh: payload.capacity_kWh,
       voltage: payload.voltage,
@@ -54,7 +55,6 @@ exports.getBattery = async (req, res) => {
   }
 };
 
-// Admin: update battery
 exports.updateBattery = async (req, res) => {
   try {
     const schema = z.object({
@@ -65,6 +65,7 @@ exports.updateBattery = async (req, res) => {
       manufacturer: z.string().optional(),
       capacity_kWh: z.number().min(0).optional(),
       voltage: z.number().min(0).optional(),
+      price: z.number().min(0).optional(),
     });
 
     const payload = schema.parse(req.body);
@@ -86,7 +87,6 @@ exports.updateBattery = async (req, res) => {
   }
 };
 
-// Admin: delete battery
 exports.deleteBattery = async (req, res) => {
   try {
     const battery = await Battery.findByIdAndDelete(req.params.id);

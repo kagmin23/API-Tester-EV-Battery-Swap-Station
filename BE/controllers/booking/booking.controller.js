@@ -109,6 +109,7 @@ const listBookings = async (req, res) => {
         soh: b.battery.soh,
         status: b.battery.status,
         manufacturer: b.battery.manufacturer,
+        price: b.battery.price,
         capacity_kWh: b.battery.capacity_kWh,
         voltage: b.battery.voltage
       } : null,
@@ -166,6 +167,7 @@ const getBookingDetail = async (req, res) => {
           soh: b.battery.soh,
           status: b.battery.status,
           manufacturer: b.battery.manufacturer,
+          price: b.battery.price,
           capacity_kWh: b.battery.capacity_kWh,
           voltage: b.battery.voltage
         } : null,
