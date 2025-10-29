@@ -111,6 +111,40 @@ app.use(function (err, req, res, next) {
 // Connect DB
 connectDB().then(() => {
   console.log('Database connected successfully!');
+  // Background job: close resolved support requests older than 1 day
+  try {
+    const SupportRequest = require('./models/support/supportRequest.model');
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+    const checkAndCloseStale = async () => {
+      const cutoff = new Date(Date.now() - ONE_DAY);
+      // Find resolved tickets older than 1 day (resolvedAt if set, otherwise use updatedAt)
+      const q = {
+        status: 'resolved',
+        $or: [
+          { resolvedAt: { $lte: cutoff } },
+          { resolvedAt: null, updatedAt: { $lte: cutoff } }
+        ]
+      };
+      const toClose = await SupportRequest.find(q).limit(200);
+      if (toClose.length > 0) {
+        const ids = toClose.map(t => t._id);
+        const autoNote = 'Auto-closed: no driver response within 24 hours.';
+        await SupportRequest.updateMany(
+          { _id: { $in: ids } },
+          { $set: { status: 'closed', closedAt: new Date(), closeNote: autoNote } }
+        );
+        console.log(`Auto-closed ${ids.length} stale support request(s)`);
+      }
+    };
+    // run every hour
+    setInterval(() => {
+      checkAndCloseStale().catch(err => console.error('Error closing stale support requests:', err));
+    }, 60 * 60 * 1000);
+    // Run once at startup
+    checkAndCloseStale().catch(err => console.error('Error closing stale support requests at startup:', err));
+  } catch (err) {
+    console.error('Background job for support requests failed to start:', err.message);
+  }
 }).catch(err => {
   console.error('Database connection failed:', err.message);
   process.exit(1);
