@@ -2,14 +2,17 @@ const Payment = require("../../models/payment/payment.model");
 const Booking = require("../../models/booking/booking.model");
 const { createVnpayUrl, verifyVnpayReturn } = require("../../utils/vnpay");
 
-// POST /api/payments/vnpay/create { amount, orderInfo, bookingId?, returnUrl }
+// ✅ POST /api/payments/vnpay/create
+// Body: { amount, orderInfo?, bookingId?, returnUrl }
 const createVnpayPayment = async (req, res) => {
   try {
     let { amount, orderInfo, bookingId, returnUrl } = req.body;
-    if (!amount || !returnUrl)
-      return res
-        .status(400)
-        .json({ success: false, message: "amount and returnUrl are required" });
+    if (!amount || !returnUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "amount and returnUrl are required",
+      });
+    }
 
     if (!orderInfo && bookingId) orderInfo = `Booking #${bookingId}`;
     if (!orderInfo) orderInfo = "VNPay Payment";
@@ -17,10 +20,11 @@ const createVnpayPayment = async (req, res) => {
     let booking = null;
     if (bookingId) {
       booking = await Booking.findOne({ bookingId, user: req.user.id });
-      if (!booking)
+      if (!booking) {
         return res
           .status(404)
           .json({ success: false, message: "Booking not found" });
+      }
     }
 
     const vnp_TmnCode = process.env.VNP_TMNCODE || "DEMO";
@@ -48,20 +52,23 @@ const createVnpayPayment = async (req, res) => {
       status: "init",
       vnpTxnRef: txnRef,
       vnpOrderInfo: orderInfo,
+        vnpReturnUrl: returnUrl,
     });
 
-    return res
-      .status(201)
-      .json({
-        success: true,
-        data: { url: paymentUrl, txnRef, payment_id: payment._id },
-      });
+    return res.status(201).json({
+      success: true,
+      data: { url: paymentUrl, txnRef, paymentId: payment._id },
+    });
   } catch (err) {
-    return res.status(400).json({ success: false, message: err.message });
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
-// GET /api/payments/vnpay/return : VNPAY return URL
+// ✅ GET /api/payments/vnpay/return
+// → VNPay sẽ redirect về đây sau khi thanh toán
 const vnpayReturn = async (req, res) => {
   try {
     const ok = verifyVnpayReturn(
@@ -69,41 +76,81 @@ const vnpayReturn = async (req, res) => {
       process.env.VNP_HASHSECRET || "SECRET"
     );
     const txnRef = req.query.vnp_TxnRef;
+    const responseCode = req.query.vnp_ResponseCode;
+
     const pay = await Payment.findOne({ vnpTxnRef: txnRef });
-    if (!pay)
-      return res
-        .status(404)
-        .json({ success: false, message: "Payment not found" });
-    pay.vnpResponseCode = req.query.vnp_ResponseCode;
+    if (!pay) {
+      return res.status(404).send("<h2>Payment not found</h2>");
+    }
+
+    pay.vnpResponseCode = responseCode;
     pay.vnpSecureHash = req.query.vnp_SecureHash;
-    pay.status =
-      ok && req.query.vnp_ResponseCode === "00" ? "success" : "failed";
+    pay.status = ok && responseCode === "00" ? "success" : "failed";
     await pay.save();
-    return res
-      .status(200)
-      .json({
-        success: true,
-        data: { status: pay.status, code: req.query.vnp_ResponseCode },
-      });
+
+    // Nếu có booking, update paymentStatus
+    if (pay.booking && pay.status === "success") {
+      await Booking.findByIdAndUpdate(pay.booking, { paymentStatus: "paid" });
+    }
+
+    // ✅ Redirect về app Expo (deep link)
+    const redirectBase = decodeURIComponent(
+      pay.vnpReturnUrl || req.query.vnp_ReturnUrl || ""
+    );
+    const successLink =
+      pay.status === "success"
+        ? `${redirectBase}`
+        : `${redirectBase}?status=failed`;
+
+    // ⚠️ Nếu FE gửi returnUrl là exp://192.168.1.16:8081/--/payment-success
+    // VNPay sẽ redirect về link đó (mở app ngay)
+    return res.redirect(successLink);
   } catch (err) {
-    return res.status(400).json({ success: false, message: err.message });
+    return res.status(400).send(`<h3>Error: ${err.message}</h3>`);
   }
 };
 
-// GET /api/payments/vnpay/ipn : VNPAY IPN handler (demo)
+// ✅ GET /api/payments/vnpay/ipn (callback server-to-server)
 const vnpayIpn = async (req, res) => {
   try {
     const ok = verifyVnpayReturn(
       { ...req.query },
       process.env.VNP_HASHSECRET || "SECRET"
     );
-    return res
-      .status(200)
-      .json({
-        RspCode: ok ? "00" : "97",
-        Message: ok ? "Success" : "Fail checksum",
-      });
-  } catch {
+
+    if (!ok) {
+      return res
+        .status(200)
+        .json({ RspCode: "97", Message: "Invalid signature" });
+    }
+
+    const txnRef = req.query.vnp_TxnRef;
+    const responseCode = req.query.vnp_ResponseCode;
+    const pay = await Payment.findOne({ vnpTxnRef: txnRef });
+
+    if (!pay) {
+      return res
+        .status(200)
+        .json({ RspCode: "01", Message: "Payment not found" });
+    }
+
+    if (pay.status === "success") {
+      return res
+        .status(200)
+        .json({ RspCode: "02", Message: "Already processed" });
+    }
+
+    pay.vnpResponseCode = responseCode;
+    pay.vnpSecureHash = req.query.vnp_SecureHash;
+    pay.status = responseCode === "00" ? "success" : "failed";
+    await pay.save();
+
+    if (pay.booking && responseCode === "00") {
+      await Booking.findByIdAndUpdate(pay.booking, { paymentStatus: "paid" });
+    }
+
+    return res.status(200).json({ RspCode: "00", Message: "Success" });
+  } catch (err) {
     return res.status(200).json({ RspCode: "99", Message: "Unknown error" });
   }
 };

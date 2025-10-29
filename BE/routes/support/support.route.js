@@ -27,8 +27,11 @@ router.use(authenticate);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [title]
+ *             required: [bookingId, title]
  *             properties:
+ *               bookingId:
+ *                 type: string
+ *                 description: Booking ID (only bookings with status 'completed' are allowed)
  *               title:
  *                 type: string
  *                 minLength: 3
@@ -44,6 +47,53 @@ router.use(authenticate);
  *     responses:
  *       201:
  *         description: Support request created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                     user:
+ *                       type: string
+ *                     booking:
+ *                       type: object
+ *                       properties:
+ *                         bookingId:
+ *                           type: string
+ *                         scheduledTime:
+ *                           type: string
+ *                           format: date-time
+ *                         status:
+ *                           type: string
+ *                         battery:
+ *                           type: object
+ *                           properties:
+ *                             _id:
+ *                               type: string
+ *                             serial:
+ *                               type: string
+ *                             model:
+ *                               type: string
+ *                             soh:
+ *                               type: number
+ *                             status:
+ *                               type: string
+ *                     title:
+ *                       type: string
+ *                     description:
+ *                       type: string
+ *                     images:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                 message:
+ *                   type: string
  *       400:
  *         description: Invalid input
  *       401:
@@ -62,6 +112,57 @@ router.post('/requests', createSupportRequest);
  *     responses:
  *       200:
  *         description: Support requests list
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                       user:
+ *                         type: string
+ *                       booking:
+ *                         type: object
+ *                         properties:
+ *                           bookingId:
+ *                             type: string
+ *                           scheduledTime:
+ *                             type: string
+ *                             format: date-time
+ *                           status:
+ *                             type: string
+ *                           battery:
+ *                             type: object
+ *                             properties:
+ *                               _id:
+ *                                 type: string
+ *                               serial:
+ *                                 type: string
+ *                               model:
+ *                                 type: string
+ *                               soh:
+ *                                 type: number
+ *                               status:
+ *                                 type: string
+ *                       title:
+ *                         type: string
+ *                       description:
+ *                         type: string
+ *                       images:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                       status:
+ *                         type: string
+ *                 message:
+ *                   type: string
  *       401:
  *         description: Unauthorized
  */

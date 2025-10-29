@@ -5,7 +5,7 @@ const complaintSchema = new mongoose.Schema({
   staff: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
   title: { type: String, required: true },
   description: { type: String },
-  status: { type: String, enum: ['open', 'in-review', 'resolved', 'closed'], default: 'open', index: true },
+  status: { type: String, enum: ['in-review', 'resolved', 'closed'], default: 'in-review', index: true },
   response: { type: String },
   images: [{ type: String }],
 }, { timestamps: true });

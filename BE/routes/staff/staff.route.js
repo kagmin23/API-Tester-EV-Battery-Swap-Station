@@ -191,7 +191,8 @@ router.get('/swap/requests', listSwapRequests);
  * @swagger
  * /api/staff/swap/requests/{id}/confirm:
  *   put:
- *     summary: Confirm a swap request
+ *     summary: Confirm or cancel a swap request
+ *     description: Staff can confirm a pending swap request or cancel it by providing an optional `status` in the request body. If omitted, the request will be confirmed.
  *     tags: [Staff]
  *     security:
  *       - bearerAuth: []
@@ -201,9 +202,22 @@ router.get('/swap/requests', listSwapRequests);
  *         required: true
  *         schema:
  *           type: string
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 description: Desired booking status. If omitted, defaults to 'confirmed'.
+ *                 enum: [confirmed, cancelled]
  *     responses:
  *       200:
- *         description: Request confirmed
+ *         description: Request updated (confirmed or cancelled)
+ *       400:
+ *         description: Invalid input
  *       404:
  *         description: Request not found
  *       401:

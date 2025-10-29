@@ -20,10 +20,21 @@ const staffRoutes = require("./routes/staff/staff.route");
 const adminRoutes = require("./routes/admin/admin.route");
 const batteryRoutes = require("./routes/battery/battery.route");
 const paymentRoutes = require("./routes/payment/payment.route");
+const feedbackRoutes = require("./routes/feedback/feedback.route");
 var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
 
 var app = express();
+
+// 👉 BỎ QUA trang cảnh báo của ngrok
+app.use((req, res, next) => {
+  res.setHeader("ngrok-skip-browser-warning", "true");
+  next();
+});
+
+// Middleware
+app.use(cors());
+app.use(express.json());
 
 // Middleware
 app.use(cors());
@@ -82,6 +93,7 @@ app.use("/api/staff", staffRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/batteries", batteryRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

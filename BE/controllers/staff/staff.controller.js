@@ -57,45 +57,67 @@ const updateBattery = async (req, res) => {
 const listSwapRequests = async (req, res) => {
   try {
     let stationId = null;
+
+    // 🔹 If staff: limit to their assigned station
     if (req.user && req.user.role === 'staff') {
       stationId = req.user.station;
+
       if (!stationId) {
         const staffUser = await User.findById(req.user.id).select('station role');
-        if (!staffUser) return res.status(401).json({ success: false, message: 'Unauthorized' });
-        if (staffUser.role !== 'staff') return res.status(403).json({ success: false, message: 'Forbidden' });
+        if (!staffUser)
+          return res.status(401).json({ success: false, message: 'Unauthorized' });
+        if (staffUser.role !== 'staff')
+          return res.status(403).json({ success: false, message: 'Forbidden' });
         stationId = staffUser.station;
-        if (!stationId) return res.status(400).json({ success: false, message: 'Staff not assigned to a station' });
+        if (!stationId)
+          return res
+            .status(400)
+            .json({ success: false, message: 'Staff not assigned to a station' });
       }
     } else {
+      // 🔹 Admin or others: can query via stationId
       stationId = req.query.stationId || null;
     }
 
-    const filter = { status: 'pending' };
+    // ✅ Remove status filter to get all bookings
+    const filter = {};
     if (stationId) filter.station = stationId;
 
+    // 🔹 Fetch bookings and related info
     const bookings = await Booking.find(filter)
       .populate('user', 'fullName phoneNumber')
-      .populate('battery', 'serial model soh status manufacturer capacity_kWh voltage')
+      .populate(
+        'battery',
+        'serial model soh status manufacturer capacity_kWh voltage'
+      )
       .populate('station', 'stationName address city district')
       .sort({ createdAt: -1 });
 
-    const data = bookings.map(b => ({
+    const data = bookings.map((b) => ({
       booking_id: b.bookingId,
-      user: b.user ? { id: b.user._id, name: b.user.fullName, phone: b.user.phoneNumber } : null,
+      user: b.user
+        ? {
+            id: b.user._id,
+            name: b.user.fullName,
+            phone: b.user.phoneNumber,
+          }
+        : null,
       vehicle_id: b.vehicle ? b.vehicle.toString() : null,
       station_id: b.station ? b.station._id.toString() : null,
       station_name: b.station ? b.station.stationName : null,
       battery_id: b.battery ? b.battery._id.toString() : null,
-      battery_info: b.battery ? {
-        serial: b.battery.serial,
-        model: b.battery.model,
-        soh: b.battery.soh,
-        status: b.battery.status,
-        manufacturer: b.battery.manufacturer,
-        price: b.battery.price,
-        capacity_kWh: b.battery.capacity_kWh,
-        voltage: b.battery.voltage
-      } : null,
+      battery_info: b.battery
+        ? {
+            serial: b.battery.serial,
+            model: b.battery.model,
+            soh: b.battery.soh,
+            status: b.battery.status,
+            manufacturer: b.battery.manufacturer,
+            price: b.battery.price,
+            capacity_kWh: b.battery.capacity_kWh,
+            voltage: b.battery.voltage,
+          }
+        : null,
       scheduled_time: b.scheduledTime,
       status: b.status,
       created_at: b.createdAt,
@@ -107,36 +129,96 @@ const listSwapRequests = async (req, res) => {
   }
 };
 
+const confirmSwapSchema = z.object({
+  status: z.enum(['confirmed', 'cancelled', 'completed']).optional(),
+});
+
 const confirmSwapRequest = async (req, res) => {
   try {
+    const body = confirmSwapSchema.parse(req.body || {});
+    const requestedStatus = body.status || 'confirmed';
     const { id } = req.params;
-    const filter = { bookingId: id, status: 'pending' };
+
+    // 🧠 Điều chỉnh logic chuyển trạng thái
+    // pending → confirmed / cancelled
+    // ready → completed
+    const filter = {
+      bookingId: id,
+      status:
+        requestedStatus === 'completed'
+          ? 'ready'
+          : 'pending',
+    };
+
+    // Staff-only filter by station
     if (req.user && req.user.role === 'staff') {
       let staffStation = req.user.station;
       if (!staffStation) {
         const staffUser = await User.findById(req.user.id).select('station role');
-        if (!staffUser) return res.status(401).json({ success: false, message: 'Unauthorized' });
-        if (staffUser.role !== 'staff') return res.status(403).json({ success: false, message: 'Forbidden' });
+        if (!staffUser)
+          return res.status(401).json({ success: false, message: 'Unauthorized' });
+        if (staffUser.role !== 'staff')
+          return res.status(403).json({ success: false, message: 'Forbidden' });
         staffStation = staffUser.station;
       }
-      if (!staffStation) return res.status(400).json({ success: false, message: 'Staff not assigned to a station' });
+      if (!staffStation)
+        return res.status(400).json({ success: false, message: 'Staff not assigned to a station' });
       filter.station = staffStation;
     }
 
     const booking = await Booking.findOne(filter);
-    if (!booking) return res.status(404).json({ success: false, message: 'Booking not found' });
+    if (!booking)
+      return res
+        .status(404)
+        .json({ success: false, message: 'Booking not found or invalid status transition' });
 
-    booking.status = 'confirmed';
+    booking.status = requestedStatus;
     await booking.save();
 
+    // 🪫 Update battery status + history
     if (booking.battery) {
-      // mark battery as in-use
-      await Battery.findByIdAndUpdate(booking.battery, { status: 'in-use' });
-      await BatteryHistory.create({ battery: booking.battery, station: booking.station, action: 'swap', soh: null, details: `Swap confirmed by staff ${req.user.id}` });
+      if (requestedStatus === 'confirmed') {
+        await Battery.findByIdAndUpdate(booking.battery, { status: 'in-use' });
+        await BatteryHistory.create({
+          battery: booking.battery,
+          station: booking.station,
+          action: 'swap',
+          soh: null,
+          details: `Swap confirmed by staff ${req.user.id}`,
+        });
+      } else if (requestedStatus === 'cancelled') {
+        await Battery.findByIdAndUpdate(booking.battery, { status: 'idle' });
+        await BatteryHistory.create({
+          battery: booking.battery,
+          station: booking.station,
+          action: 'cancel',
+          soh: null,
+          details: `Swap cancelled by staff ${req.user.id}`,
+        });
+      } else if (requestedStatus === 'completed') {
+        await Battery.findByIdAndUpdate(booking.battery, { status: 'in-use' });
+        await BatteryHistory.create({
+          battery: booking.battery,
+          station: booking.station,
+          action: 'return',
+          soh: null,
+          details: `Swap completed by staff ${req.user.id}`,
+        });
+      }
     }
 
-    return res.status(200).json({ success: true, data: null, message: 'Swap confirmed' });
+    return res.status(200).json({
+      success: true,
+      data: null,
+      message: `Swap ${requestedStatus}`,
+    });
   } catch (err) {
+    if (err instanceof ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: err.errors?.[0]?.message || 'Invalid input',
+      });
+    }
     return res.status(400).json({ success: false, message: err.message });
   }
 };

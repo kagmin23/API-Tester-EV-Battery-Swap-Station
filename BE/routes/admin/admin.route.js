@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
 const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, deletePlan, reportsOverview, reportsUsage, aiPredictions, createStation, changeUserRole, changeUserStatus, assignStaffToStation, removeStaffFromStation } = require('../../controllers/admin/admin.controller');
+const feedbackController = require('../../controllers/feedback/feedback.controller');
 
 // Public endpoint: list stations is accessible to unauthenticated users (e.g., drivers)
 router.get('/stations', listStations);
@@ -843,5 +844,67 @@ router.get('/reports/usage', reportsUsage);
  *         description: Unauthorized
  */
 router.get('/ai/predictions', aiPredictions);
+
+/**
+ * @swagger
+ * /api/admin/feedbacks:
+ *   get:
+ *     summary: Admin - list feedbacks with optional filters
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: stationId
+ *         schema:
+ *           type: string
+ *         description: Filter feedbacks by station id (bookings at that station)
+ *       - in: query
+ *         name: bookingId
+ *         schema:
+ *           type: string
+ *         description: Filter by booking id
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         description: Filter by user id
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Page size for pagination
+ *     responses:
+ *       200:
+ *         description: A list of feedbacks
+ */
+router.get('/feedbacks', feedbackController.adminListFeedbacks);
+
+/**
+ * @swagger
+ * /api/admin/feedbacks/{id}:
+ *   delete:
+ *     summary: Admin - delete a feedback by id
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Feedback deleted
+ *       404:
+ *         description: Feedback not found
+ */
+router.delete('/feedbacks/:id', feedbackController.adminDeleteFeedback);
 
 module.exports = router;
