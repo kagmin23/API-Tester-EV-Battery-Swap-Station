@@ -77,6 +77,38 @@ const adminListAllSupportRequests = async (req, res) => {
   }
 };
 
+// Get support requests for a specific station (admin or staff)
+const getSupportRequestsByStation = async (req, res) => {
+  try {
+    const stationId = req.params.id;
+
+    // If staff, ensure they belong to the station. JWT may not include station, so load user record.
+    if (req.user && req.user.role === 'staff') {
+      const User = require('../../models/auth/auth.model');
+      const staff = await User.findById(req.user.id).select('station');
+      const staffStation = staff ? staff.station : null;
+      if (!staffStation || staffStation.toString() !== stationId) {
+        return res.status(403).json({ success: false, message: 'Forbidden: not assigned to this station' });
+      }
+    }
+
+    // Find bookings for the station
+    const bookings = await Booking.find({ station: stationId }).select('_id');
+    const bookingIds = bookings.map(b => b._id);
+
+    const items = await SupportRequest.find({ booking: { $in: bookingIds } })
+      .populate(populateForList())
+      .populate({ path: 'user', select: 'fullName email phoneNumber' })
+      .populate({ path: 'resolvedBy', select: 'fullName email' })
+      .populate({ path: 'closedBy', select: 'fullName email' })
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({ success: true, data: items });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
 const resolveSupportRequest = async (req, res) => {
   try {
     const id = req.params.id;
@@ -154,4 +186,4 @@ const closeSupportRequest = async (req, res) => {
   }
 };
 
-module.exports = { createSupportRequest, listSupportRequests, adminListAllSupportRequests, resolveSupportRequest, completeSupportRequest, closeSupportRequest };
+module.exports = { createSupportRequest, listSupportRequests, adminListAllSupportRequests, resolveSupportRequest, completeSupportRequest, closeSupportRequest, getSupportRequestsByStation };

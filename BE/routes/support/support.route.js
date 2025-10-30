@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { createSupportRequest, listSupportRequests, adminListAllSupportRequests, resolveSupportRequest, completeSupportRequest, closeSupportRequest } = require('../../controllers/support/support.controller');
+const { createSupportRequest, listSupportRequests, adminListAllSupportRequests, resolveSupportRequest, completeSupportRequest, closeSupportRequest, getSupportRequestsByStation } = require('../../controllers/support/support.controller');
 
 /**
  * @swagger
@@ -247,6 +247,32 @@ router.get('/requests', listSupportRequests);
 
 // Admin: list all support requests
 router.get('/admin/requests', authorizeRoles('admin', 'staff'), adminListAllSupportRequests);
+
+/**
+ * @swagger
+ * /api/support/station/{id}/requests:
+ *   get:
+ *     summary: List support requests for a station
+ *     description: Admin can list support requests for any station. Staff can list requests only for their assigned station.
+ *     tags: [Support]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Station id
+ *     responses:
+ *       200:
+ *         description: Support requests list for station
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (staff not assigned to station)
+ */
+router.get('/station/:id/requests', authorizeRoles('admin', 'staff'), getSupportRequestsByStation);
 
 // Admin: resolve a support request (admin only)
 router.patch('/requests/:id/resolve', authorizeRoles('admin'), resolveSupportRequest);
