@@ -283,13 +283,13 @@ const listPlans = async (req, res) => {
   }
 };
 const upsertPlanSchema = z.object({
-  subscriptionName: z.string().min(1),
-  price: z.number().min(0),
-  durations: z.number().int().min(1),
-  count_swap: z.number().int().min(0).nullable(),
-  quantity_slot: z.number().int().min(1).nullable(),
-  description: z.string().optional(),
-  status: z.enum(["active", "expired"]),
+  subscriptionName: z.string().min(1).optional(),
+  price: z.number().min(0).optional(),
+  durations: z.number().int().min(1).optional(),
+  count_swap: z.number().int().min(0).nullable().optional(),
+  quantity_slot: z.number().int().min(1).nullable().optional(),
+  description: z.string().optional().optional(),
+  status: z.enum(["active", "expired"]).optional(),
 });
 const upsertPlan = async (req, res) => {
   try {

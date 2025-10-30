@@ -13,10 +13,6 @@ const getPlansForUser = async (req, res) => {
   }
 };
 
-/**
- * Create a VNPay payment for a subscription plan (returns payment URL).
- * Body: { planId, returnUrl }
- */
 const createSubscriptionPayment = async (req, res) => {
   try {
     if (!req.user || req.user.role !== 'driver') {
@@ -94,9 +90,29 @@ const purchaseSubscription = async (req, res) => {
     }
 
     // Prevent duplicate active subscription for same user+plan
-    const existing = await UserSubscription.findOne({ plan: plan._id, user: req.user.id, status: 'active' });
-    if (existing) {
+    const existingActive = await UserSubscription.findOne({ plan: plan._id, user: req.user.id, status: 'active' });
+    if (existingActive) {
       return res.status(400).json({ success: false, message: 'User already has an active subscription for this plan' });
+    }
+
+    // If user has a cancelled subscription for same plan, reactivate it
+    const existingCancelled = await UserSubscription.findOne({ plan: plan._id, user: req.user.id, status: 'cancelled' });
+    if (existingCancelled) {
+      const start = start_date ? new Date(start_date) : new Date();
+      let end = null;
+      if (plan.durations && Number.isFinite(Number(plan.durations))) {
+        const d = new Date(start);
+        d.setMonth(d.getMonth() + Number(plan.durations));
+        end = d;
+      }
+      const remaining_swaps = (plan.count_swap === null || plan.count_swap === undefined) ? null : plan.count_swap;
+
+      existingCancelled.start_date = start;
+      existingCancelled.end_date = end;
+      existingCancelled.remaining_swaps = remaining_swaps;
+      existingCancelled.status = 'active';
+      await existingCancelled.save();
+      return res.status(200).json({ success: true, data: existingCancelled, message: 'Subscription re-activated' });
     }
 
     const start = start_date ? new Date(start_date) : new Date();

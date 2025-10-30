@@ -107,9 +107,10 @@ const vnpayReturn = async (req, res) => {
                 pay.status = 'failed';
                 await pay.save();
               } else {
-                // Prevent duplicate per-user active subscription
-                const existing = await UserSubscription.findOne({ plan: plan._id, user: pay.user, status: 'active' });
-                if (!existing) {
+                // Prevent duplicate per-user active subscription; if a cancelled subscription exists, reactivate it
+                const existingActive = await UserSubscription.findOne({ plan: plan._id, user: pay.user, status: 'active' });
+                if (!existingActive) {
+                  const cancelled = await UserSubscription.findOne({ plan: plan._id, user: pay.user, status: 'cancelled' });
                   const start = new Date();
                   let end = null;
                   if (plan.durations && Number.isFinite(Number(plan.durations))) {
@@ -118,18 +119,29 @@ const vnpayReturn = async (req, res) => {
                     end = d;
                   }
                   const remaining_swaps = (plan.count_swap === null || plan.count_swap === undefined) ? null : plan.count_swap;
-                  const sub = await UserSubscription.create({
-                    user: pay.user,
-                    plan: plan._id,
-                    start_date: start,
-                    end_date: end,
-                    remaining_swaps,
-                    status: 'active',
-                  });
-                  // attach subscription id into payment.extra to record
-                  pay.extra = pay.extra || {};
-                  pay.extra.subscriptionId = sub._id.toString();
-                  await pay.save();
+                  if (cancelled) {
+                    // reactivate cancelled subscription
+                    cancelled.start_date = start;
+                    cancelled.end_date = end;
+                    cancelled.remaining_swaps = remaining_swaps;
+                    cancelled.status = 'active';
+                    const sub = await cancelled.save();
+                    pay.extra = pay.extra || {};
+                    pay.extra.subscriptionId = sub._id.toString();
+                    await pay.save();
+                  } else {
+                    const sub = await UserSubscription.create({
+                      user: pay.user,
+                      plan: plan._id,
+                      start_date: start,
+                      end_date: end,
+                      remaining_swaps,
+                      status: 'active',
+                    });
+                    pay.extra = pay.extra || {};
+                    pay.extra.subscriptionId = sub._id.toString();
+                    await pay.save();
+                  }
                 }
               }
             }
@@ -212,19 +224,31 @@ const vnpayIpn = async (req, res) => {
               end = d;
             }
             const remaining_swaps = (plan.count_swap === null || plan.count_swap === undefined) ? null : plan.count_swap;
-            const existing = await UserSubscription.findOne({ plan: plan._id, user: pay.user, status: 'active' });
-            if (!existing) {
-              const sub = await UserSubscription.create({
-                user: pay.user,
-                plan: plan._id,
-                start_date: start,
-                end_date: end,
-                remaining_swaps,
-                status: 'active',
-              });
-              pay.extra = pay.extra || {};
-              pay.extra.subscriptionId = sub._id.toString();
-              await pay.save();
+            const existingActive = await UserSubscription.findOne({ plan: plan._id, user: pay.user, status: 'active' });
+            if (!existingActive) {
+              const cancelled = await UserSubscription.findOne({ plan: plan._id, user: pay.user, status: 'cancelled' });
+              if (cancelled) {
+                cancelled.start_date = start;
+                cancelled.end_date = end;
+                cancelled.remaining_swaps = remaining_swaps;
+                cancelled.status = 'active';
+                const sub = await cancelled.save();
+                pay.extra = pay.extra || {};
+                pay.extra.subscriptionId = sub._id.toString();
+                await pay.save();
+              } else {
+                const sub = await UserSubscription.create({
+                  user: pay.user,
+                  plan: plan._id,
+                  start_date: start,
+                  end_date: end,
+                  remaining_swaps,
+                  status: 'active',
+                });
+                pay.extra = pay.extra || {};
+                pay.extra.subscriptionId = sub._id.toString();
+                await pay.save();
+              }
             }
           }
         }
