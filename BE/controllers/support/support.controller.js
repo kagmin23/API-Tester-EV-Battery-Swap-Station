@@ -77,12 +77,10 @@ const adminListAllSupportRequests = async (req, res) => {
   }
 };
 
-// Get support requests for a specific station (admin or staff)
 const getSupportRequestsByStation = async (req, res) => {
   try {
     const stationId = req.params.id;
 
-    // If staff, ensure they belong to the station. JWT may not include station, so load user record.
     if (req.user && req.user.role === 'staff') {
       const User = require('../../models/auth/auth.model');
       const staff = await User.findById(req.user.id).select('station');

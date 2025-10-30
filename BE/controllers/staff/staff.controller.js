@@ -34,7 +34,95 @@ const batteryDetail = async (req, res) => {
 };
 
 const batteryHistory = async (req, res) => {
-  try { const his = await BatteryHistory.find({ battery: req.params.id }).sort({ createdAt: -1 }); return res.status(200).json({ success: true, data: his }); } catch (err) { return res.status(400).json({ success: false, message: err.message }); }
+  try {
+    const batteryId = req.params.id;
+    const battery = await Battery.findById(batteryId).select('station status soh serial model updatedAt');
+    if (!battery) return res.status(404).json({ success: false, message: 'Battery not found' });
+
+    // If the requester is staff, ensure they belong to the same station
+    if (req.user && req.user.role === 'staff') {
+      let staffStation = req.user.station;
+      if (!staffStation) {
+        const staffUser = await User.findById(req.user.id).select('station role');
+        if (!staffUser) return res.status(401).json({ success: false, message: 'Unauthorized' });
+        if (staffUser.role !== 'staff') return res.status(403).json({ success: false, message: 'Forbidden' });
+        staffStation = staffUser.station;
+      }
+      if (!staffStation) return res.status(400).json({ success: false, message: 'Staff not assigned to a station' });
+      if (!battery.station || battery.station.toString() !== staffStation.toString()) {
+        return res.status(403).json({ success: false, message: 'Forbidden: battery does not belong to your station' });
+      }
+    }
+
+    const his = await BatteryHistory.find({ battery: batteryId }).sort({ createdAt: -1 });
+    return res.status(200).json({ success: true, data: { battery, history: his } });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+const batteryLogForStaff = async (req, res) => {
+  try {
+    const batteryId = req.params.id;
+    const battery = await Battery.findById(batteryId).select('station status soh serial model updatedAt');
+    if (!battery) return res.status(404).json({ success: false, message: 'Battery not found' });
+
+    if (req.user && req.user.role === 'staff') {
+      let staffStation = req.user.station;
+      if (!staffStation) {
+        const staffUser = await User.findById(req.user.id).select('station role');
+        if (!staffUser) return res.status(401).json({ success: false, message: 'Unauthorized' });
+        if (staffUser.role !== 'staff') return res.status(403).json({ success: false, message: 'Forbidden' });
+        staffStation = staffUser.station;
+      }
+      if (!staffStation) return res.status(400).json({ success: false, message: 'Staff not assigned to a station' });
+      if (!battery.station || battery.station.toString() !== staffStation.toString()) {
+        return res.status(403).json({ success: false, message: 'Forbidden: battery does not belong to your station' });
+      }
+    } else {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
+    const histories = await BatteryHistory.find({ battery: batteryId }).sort({ createdAt: -1 }).lean();
+
+    const driverIdRegex = /Driver\s+([a-fA-F0-9]{24})/;
+    const driverIds = new Set();
+    histories.forEach(h => {
+      if (h.details) {
+        const m = h.details.match(driverIdRegex);
+        if (m && m[1]) driverIds.add(m[1]);
+      }
+    });
+
+    let driversMap = {};
+    if (driverIds.size > 0) {
+      const users = await User.find({ _id: { $in: Array.from(driverIds) } }).select('fullName phoneNumber').lean();
+      users.forEach(u => { driversMap[u._id.toString()] = { id: u._id, name: u.fullName, phone: u.phoneNumber }; });
+    }
+
+    const mapped = histories.map(h => {
+      let driver = null;
+      if (h.details) {
+        const m = h.details.match(driverIdRegex);
+        if (m && m[1] && driversMap[m[1]]) driver = driversMap[m[1]];
+      }
+      return {
+        id: h._id,
+        action: h.action,
+        soh: h.soh,
+        details: h.details,
+        at: h.at || h.createdAt,
+        station: h.station,
+        driver,
+        createdAt: h.createdAt,
+        updatedAt: h.updatedAt,
+      };
+    });
+
+    return res.status(200).json({ success: true, data: { battery: { id: battery._id, serial: battery.serial, model: battery.model, status: battery.status, soh: battery.soh, lastUpdated: battery.updatedAt }, history: mapped } });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
 };
 
 const updateBatterySchema = z.object({ status: z.enum(['charging','full','faulty','in-use','idle']).optional(), soh: z.number().min(0).max(100).optional() });
@@ -281,4 +369,4 @@ const me = async (req, res) => {
   }
 };
 
-module.exports = { dashboard, listStationBatteries, batteryDetail, batteryHistory, updateBattery, listSwapRequests, confirmSwapRequest, recordSwapReturn, createStationPayment, stationSwapHistory, me };
+module.exports = { dashboard, listStationBatteries, batteryDetail, batteryHistory, batteryLogForStaff, updateBattery, listSwapRequests, confirmSwapRequest, recordSwapReturn, createStationPayment, stationSwapHistory, me };

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { dashboard, listStationBatteries, batteryDetail, batteryHistory, updateBattery, listSwapRequests, confirmSwapRequest, recordSwapReturn, createStationPayment, stationSwapHistory, me } = require('../../controllers/staff/staff.controller');
+const { dashboard, listStationBatteries, batteryDetail, batteryHistory, batteryLogForStaff, updateBattery, listSwapRequests, confirmSwapRequest, recordSwapReturn, createStationPayment, stationSwapHistory, me } = require('../../controllers/staff/staff.controller');
 
 router.use(authenticate, authorizeRoles('staff', 'admin'));
 
@@ -9,6 +9,7 @@ router.get('/stations/:stationId/dashboard', dashboard);
 router.get('/stations/:stationId/batteries', listStationBatteries);
 router.get('/batteries/:id', batteryDetail);
 router.get('/batteries/:id/history', batteryHistory);
+router.get('/batteries/:id/logs', batteryLogForStaff);
 router.put('/batteries/:id', updateBattery);
 router.get('/swap/requests', listSwapRequests);
 router.put('/swap/requests/:id/confirm', confirmSwapRequest);
@@ -125,6 +126,30 @@ router.get('/batteries/:id', batteryDetail);
  *         description: Forbidden
  */
 router.get('/batteries/:id/history', batteryHistory);
+
+/**
+ * @swagger
+ * /api/staff/batteries/{id}/logs:
+ *   get:
+ *     summary: Staff - Get battery logs for a battery in your station
+ *     tags: [Staff]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Battery logs
+ *       403:
+ *         description: Forbidden (battery not in your station)
+ *       404:
+ *         description: Battery not found
+ */
+router.get('/batteries/:id/logs', batteryLogForStaff);
 
 /**
  * @swagger

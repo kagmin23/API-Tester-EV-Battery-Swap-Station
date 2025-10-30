@@ -15,6 +15,8 @@ const {
   updateStationBatteryCounts,
   updateAllStationsBatteryCounts,
   getStationBatteryManagement,
+  getBatteryLogAdmin,
+  getAllBatteryLogsAdmin,
 } = require("../../controllers/battery/battery.controller");
 
 /**
@@ -396,6 +398,71 @@ router.use(authenticate, authorizeRoles("admin"));
  *         description: Invalid input
  */
 router.post("/", createBattery);
+
+// Admin: get battery logs (history) — includes parsed driver info when available
+/**
+ * @swagger
+ * /api/batteries/{id}/logs:
+ *   get:
+ *     summary: Admin - Get battery logs and history
+ *     tags: [Batteries]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Battery logs and history
+ *       404:
+ *         description: Battery not found
+ */
+router.get('/:id/logs', authenticate, authorizeRoles('admin'), getBatteryLogAdmin);
+
+/**
+ * @swagger
+ * /api/batteries/logs:
+ *   get:
+ *     summary: Admin - Get all battery logs (with filters)
+ *     tags: [Batteries]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: stationId
+ *         schema:
+ *           type: string
+ *         description: Filter by station id
+ *       - in: query
+ *         name: action
+ *         schema:
+ *           type: string
+ *         description: Filter by action (check-in, check-out, swap, repair, return)
+ *       - in: query
+ *         name: batteryId
+ *         schema:
+ *           type: string
+ *         description: Filter by battery id
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Page number (default 1)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Page size (default 50)
+ *     responses:
+ *       200:
+ *         description: List of battery logs
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/logs', authenticate, authorizeRoles('admin'), getAllBatteryLogsAdmin);
 
 /**
  * @swagger
