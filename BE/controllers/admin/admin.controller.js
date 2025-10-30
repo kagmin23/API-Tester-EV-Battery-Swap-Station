@@ -8,7 +8,13 @@ const { z, ZodError } = require("zod");
 const listStations = async (req, res) => {
   try {
     const items = await Station.find({});
-    return res.status(200).json({ success: true, data: items });
+    // Update battery counts and SOH for all stations to get real-time data
+    const updatedItems = [];
+    for (const station of items) {
+      const updated = await station.updateBatteryCounts();
+      updatedItems.push(updated);
+    }
+    return res.status(200).json({ success: true, data: updatedItems });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
@@ -19,6 +25,8 @@ const getStation = async (req, res) => {
     const st = await Station.findById(req.params.id);
     if (!st)
       return res.status(404).json({ success: false, message: "Not found" });
+    // Update battery counts and SOH to get real-time data
+    await st.updateBatteryCounts();
     const batteries = await Battery.find({ station: st._id });
     const staff = await User.find({ role: 'staff', station: st._id }).select('-password');
     return res.status(200).json({ success: true, data: { station: st, batteries, staff } });
