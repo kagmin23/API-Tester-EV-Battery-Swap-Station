@@ -283,13 +283,13 @@ const listPlans = async (req, res) => {
   }
 };
 const upsertPlanSchema = z.object({
+  subscriptionName: z.string().min(1),
   price: z.number().min(0),
-  durations: z.number().int().min(1).optional(),
-  count_swap: z.number().int().min(0).nullable().optional(),
-  // maximum number of users who can buy this plan; null means unlimited
-  quantity_slot: z.number().int().min(1).nullable().optional(),
+  durations: z.number().int().min(1),
+  count_swap: z.number().int().min(0).nullable(),
+  quantity_slot: z.number().int().min(1).nullable(),
   description: z.string().optional(),
-  status: z.enum(["active", "expired"]).optional(),
+  status: z.enum(["active", "expired"]),
 });
 const upsertPlan = async (req, res) => {
   try {
@@ -319,7 +319,6 @@ const upsertPlan = async (req, res) => {
   }
 };
 
-// Delete subscription plan (admin only)
 const deletePlan = async (req, res) => {
   try {
     const { id } = req.params;

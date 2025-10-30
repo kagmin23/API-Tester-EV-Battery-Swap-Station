@@ -745,6 +745,10 @@ router.get('/subscriptions/plans', listPlans);
  *             type: object
  *             required: [price]
  *             properties:
+ *               subscriptionName:
+ *                 type: string
+ *                 description: Human-readable name of the subscription plan
+ *                 example: "Basic Monthly"
  *               price:
  *                 type: number
  *                 minimum: 0
@@ -795,6 +799,10 @@ router.post('/subscriptions/plans', upsertPlan);
  *           schema:
  *             type: object
  *             properties:
+ *               subscriptionName:
+ *                 type: string
+ *                 description: Human-readable name of the subscription plan
+ *                 example: "Basic Monthly"
  *               price:
  *                 type: number
  *                 minimum: 0

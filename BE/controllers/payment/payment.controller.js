@@ -89,6 +89,58 @@ const vnpayReturn = async (req, res) => {
       await Booking.findByIdAndUpdate(pay.booking, { paymentStatus: "paid" });
     }
 
+    // If this payment is for a subscription, create UserSubscription (idempotent)
+    if (pay.extra && pay.extra.type === 'subscription' && pay.status === 'success') {
+      try {
+        const UserSubscription = require('../../models/subscription/userSubscription.model');
+        const SubscriptionPlan = require('../../models/subscription/subscriptionPlan.model');
+        const planId = pay.extra.plan;
+        // avoid double-creating if we've already attached a subscription id
+        if (!pay.extra.subscriptionId) {
+          const plan = await SubscriptionPlan.findById(planId);
+          if (plan) {
+            // Check slot availability again
+            if (plan.quantity_slot !== null && plan.quantity_slot !== undefined) {
+              const activeCount = await UserSubscription.countDocuments({ plan: plan._id, status: 'active' });
+              if (activeCount >= plan.quantity_slot) {
+                // out of slots; mark payment as failed
+                pay.status = 'failed';
+                await pay.save();
+              } else {
+                // Prevent duplicate per-user active subscription
+                const existing = await UserSubscription.findOne({ plan: plan._id, user: pay.user, status: 'active' });
+                if (!existing) {
+                  const start = new Date();
+                  let end = null;
+                  if (plan.durations && Number.isFinite(Number(plan.durations))) {
+                    const d = new Date(start);
+                    d.setMonth(d.getMonth() + Number(plan.durations));
+                    end = d;
+                  }
+                  const remaining_swaps = (plan.count_swap === null || plan.count_swap === undefined) ? null : plan.count_swap;
+                  const sub = await UserSubscription.create({
+                    user: pay.user,
+                    plan: plan._id,
+                    start_date: start,
+                    end_date: end,
+                    remaining_swaps,
+                    status: 'active',
+                  });
+                  // attach subscription id into payment.extra to record
+                  pay.extra = pay.extra || {};
+                  pay.extra.subscriptionId = sub._id.toString();
+                  await pay.save();
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        // swallow subscription creation errors but keep payment saved
+        console.error('Error creating subscription after vnpay return:', err.message);
+      }
+    }
+
     // Redirect về app Expo (deep link)
     const redirectBase = decodeURIComponent(
       pay.vnpReturnUrl || req.query.vnp_ReturnUrl || ""
@@ -140,6 +192,45 @@ const vnpayIpn = async (req, res) => {
 
     if (pay.booking && responseCode === "00") {
       await Booking.findByIdAndUpdate(pay.booking, { paymentStatus: "paid" });
+    }
+
+    // If this payment is for a subscription via IPN, create subscription similarly
+    if (pay.extra && pay.extra.type === 'subscription' && responseCode === '00') {
+      try {
+        const UserSubscription = require('../../models/subscription/userSubscription.model');
+        const SubscriptionPlan = require('../../models/subscription/subscriptionPlan.model');
+        const planId = pay.extra.plan;
+        // idempotent: skip if we've already created subscription
+        if (!pay.extra.subscriptionId) {
+          const plan = await SubscriptionPlan.findById(planId);
+          if (plan) {
+            const start = new Date();
+            let end = null;
+            if (plan.durations && Number.isFinite(Number(plan.durations))) {
+              const d = new Date(start);
+              d.setMonth(d.getMonth() + Number(plan.durations));
+              end = d;
+            }
+            const remaining_swaps = (plan.count_swap === null || plan.count_swap === undefined) ? null : plan.count_swap;
+            const existing = await UserSubscription.findOne({ plan: plan._id, user: pay.user, status: 'active' });
+            if (!existing) {
+              const sub = await UserSubscription.create({
+                user: pay.user,
+                plan: plan._id,
+                start_date: start,
+                end_date: end,
+                remaining_swaps,
+                status: 'active',
+              });
+              pay.extra = pay.extra || {};
+              pay.extra.subscriptionId = sub._id.toString();
+              await pay.save();
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error creating subscription after vnpay ipn:', err.message);
+      }
     }
 
     return res.status(200).json({ RspCode: "00", Message: "Success" });
