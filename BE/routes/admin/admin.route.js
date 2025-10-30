@@ -733,7 +733,7 @@ router.get('/subscriptions/plans', listPlans);
  * @swagger
  * /api/admin/subscriptions/plans:
  *   post:
- *     summary: Create or update a subscription plan
+ *     summary: Create a subscription plan
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -745,36 +745,23 @@ router.get('/subscriptions/plans', listPlans);
  *             type: object
  *             required: [price]
  *             properties:
- *               subcriptionName:
- *                 type: string
  *               price:
  *                 type: number
  *                 minimum: 0
- *               period:
- *                 type: string
- *                 enum: [monthly, yearly]
- *               benefits:
- *                 type: array
- *                 items:
- *                   type: string
+ *               durations:
+ *                 type: integer
+ *                 minimum: 1
+ *                 description: Duration of the plan in months
+ *               count_swap:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Number of battery swaps included in the plan (0 or omitted = unlimited)
  *               status:
  *                 type: string
  *                 enum: [active, expired]
- *               duration_months:
- *                 type: integer
- *                 minimum: 1
- *               start_date:
+ *               description:
  *                 type: string
- *                 format: date-time
- *               end_date:
- *                 type: string
- *                 format: date-time
- *               name:
- *                 type: string
- *                 description: Legacy field, mapped to subcriptionName
- *               active:
- *                 type: boolean
- *                 description: Legacy field, mapped to status
+ *                 description: Human-readable description of the plan
  *     responses:
  *       200:
  *         description: Plan upserted
@@ -805,36 +792,23 @@ router.post('/subscriptions/plans', upsertPlan);
  *           schema:
  *             type: object
  *             properties:
- *               subcriptionName:
- *                 type: string
  *               price:
  *                 type: number
  *                 minimum: 0
- *               period:
+ *               durations:
+ *                 type: integer
+ *                 minimum: 1
+ *                 description: Duration of the plan in months
+ *               count_swap:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Number of battery swaps included in the plan (0 or omitted = unlimited)
+ *               description:
  *                 type: string
- *                 enum: [monthly, yearly]
- *               benefits:
- *                 type: array
- *                 items:
- *                   type: string
+ *                 description: Human-readable description of the plan
  *               status:
  *                 type: string
  *                 enum: [active, expired]
- *               duration_months:
- *                 type: integer
- *                 minimum: 1
- *               start_date:
- *                 type: string
- *                 format: date-time
- *               end_date:
- *                 type: string
- *                 format: date-time
- *               name:
- *                 type: string
- *                 description: Legacy field, mapped to subcriptionName
- *               active:
- *                 type: boolean
- *                 description: Legacy field, mapped to status
  *     responses:
  *       200:
  *         description: Plan updated

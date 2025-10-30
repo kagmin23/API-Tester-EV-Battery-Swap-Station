@@ -283,26 +283,16 @@ const listPlans = async (req, res) => {
   }
 };
 const upsertPlanSchema = z.object({
-  // New fields
-  subcriptionName: z.string().min(2).optional(),
   price: z.number().positive(),
-  period: z.enum(["monthly", "yearly"]).optional(),
-  benefits: z.array(z.string()).optional(),
+  durations: z.number().int().min(1).optional(),
+  count_swap: z.number().int().min(0).optional(),
+  description: z.string().optional(),
   status: z.enum(["active", "expired"]).optional(),
-  duration_months: z.number().int().min(1).optional(),
-  start_date: z.coerce.date().optional(),
-  end_date: z.coerce.date().optional(),
-  // Backward-compat
-  name: z.string().min(2).optional(),
-  active: z.boolean().optional(),
 });
 const upsertPlan = async (req, res) => {
   try {
     const body = upsertPlanSchema.parse(req.body);
-    // Map legacy fields if provided
     const payload = { ...body };
-    if (body.name && !body.subcriptionName) payload.subcriptionName = body.name;
-    if (typeof body.active === 'boolean' && !body.status) payload.status = body.active ? 'active' : 'expired';
 
     let plan;
     if (req.params.id) {
