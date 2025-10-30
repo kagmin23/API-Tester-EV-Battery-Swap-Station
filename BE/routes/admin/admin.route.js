@@ -756,6 +756,9 @@ router.get('/subscriptions/plans', listPlans);
  *                 type: integer
  *                 minimum: 0
  *                 description: Number of battery swaps included in the plan (0 or omitted = unlimited)
+ *               quantity_slot:
+ *                 type: integer
+ *                 description: Maximum number of users who can purchase this plan (null = unlimited)
  *               status:
  *                 type: string
  *                 enum: [active, expired]
@@ -803,6 +806,9 @@ router.post('/subscriptions/plans', upsertPlan);
  *                 type: integer
  *                 minimum: 0
  *                 description: Number of battery swaps included in the plan (0 or omitted = unlimited)
+ *               quantity_slot:
+ *                 type: integer
+ *                 description: Maximum number of users who can purchase this plan (null = unlimited)
  *               description:
  *                 type: string
  *                 description: Human-readable description of the plan

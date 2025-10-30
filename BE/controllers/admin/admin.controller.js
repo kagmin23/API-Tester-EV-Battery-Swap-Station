@@ -283,9 +283,11 @@ const listPlans = async (req, res) => {
   }
 };
 const upsertPlanSchema = z.object({
-  price: z.number().positive(),
+  price: z.number().min(0),
   durations: z.number().int().min(1).optional(),
-  count_swap: z.number().int().min(0).optional(),
+  count_swap: z.number().int().min(0).nullable().optional(),
+  // maximum number of users who can buy this plan; null means unlimited
+  quantity_slot: z.number().int().min(1).nullable().optional(),
   description: z.string().optional(),
   status: z.enum(["active", "expired"]).optional(),
 });
