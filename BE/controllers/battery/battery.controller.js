@@ -44,7 +44,6 @@ exports.createBattery = async (req, res) => {
   }
 };
 
-// Admin: get battery by id
 exports.getBattery = async (req, res) => {
   try {
     const battery = await Battery.findById(req.params.id).populate('station', 'stationName address');
@@ -97,7 +96,6 @@ exports.deleteBattery = async (req, res) => {
   }
 };
 
-// Admin: list batteries with optional filters
 exports.listBatteriesAdmin = async (req, res) => {
   try {
     const { status, stationId, sohMin, sohMax, page = 1, limit = 20, sort = 'createdAt', order = 'desc' } = req.query;
@@ -119,7 +117,6 @@ exports.listBatteriesAdmin = async (req, res) => {
   }
 };
 
-// Public: get all batteries
 exports.getModelBatteries = async (req, res) => {
   try {
     const batteries = await Battery.find({}).populate('station', 'stationName address');
@@ -129,7 +126,6 @@ exports.getModelBatteries = async (req, res) => {
   }
 };
 
-// Public: get all batteries in a specific station
 exports.getBatteriesByStation = async (req, res) => {
   try {
     const { stationId } = req.params;
@@ -190,7 +186,6 @@ exports.getBatteriesByStation = async (req, res) => {
   }
 };
 
-// Admin: Update battery counts for a specific station
 exports.updateStationBatteryCounts = async (req, res) => {
   try {
     const { stationId } = req.params;
@@ -227,7 +222,6 @@ exports.updateStationBatteryCounts = async (req, res) => {
   }
 };
 
-// Admin: Update battery counts for all stations
 exports.updateAllStationsBatteryCounts = async (req, res) => {
   try {
     const updatedStations = await Station.updateAllBatteryCounts();
@@ -255,7 +249,6 @@ exports.updateAllStationsBatteryCounts = async (req, res) => {
   }
 };
 
-// Public: Get station battery management info
 exports.getStationBatteryManagement = async (req, res) => {
   try {
     const { stationId } = req.params;

@@ -19,11 +19,10 @@ const userSchema = new mongoose.Schema(
       trim: true,
       match: [/^0\d{9}$/, "Phone number must be 10 digits and start with 0"],
     },
-    // Role-based access control
     role: {
       type: String,
       enum: ["admin", "driver", "staff"],
-      default: "driver", // Assumption: users registering are drivers by default
+      default: "driver",
       required: true,
       index: true,
     },
@@ -40,16 +39,13 @@ const userSchema = new mongoose.Schema(
     passwordResetOTPLastSentAt: { type: Date, default: null },
     passwordResetOTPResendCount: { type: Number, default: 0 },
     passwordResetOTPResendWindowStart: { type: Date, default: null },
-    // Account status control
     status: {
       type: String,
       enum: ["active", "locked"],
       default: "active",
       index: true,
     },
-    // Public avatar URL (served from /public or external)
     avatar: { type: String, default: null },
-    // Staff assigned station
     station: { type: mongoose.Schema.Types.ObjectId, ref: 'Station', index: true, default: null },
   },
   { timestamps: true }

@@ -2,8 +2,6 @@ const Payment = require("../../models/payment/payment.model");
 const Booking = require("../../models/booking/booking.model");
 const { createVnpayUrl, verifyVnpayReturn } = require("../../utils/vnpay");
 
-// ✅ POST /api/payments/vnpay/create
-// Body: { amount, orderInfo?, bookingId?, returnUrl }
 const createVnpayPayment = async (req, res) => {
   try {
     let { amount, orderInfo, bookingId, returnUrl } = req.body;
@@ -67,8 +65,6 @@ const createVnpayPayment = async (req, res) => {
   }
 };
 
-// ✅ GET /api/payments/vnpay/return
-// → VNPay sẽ redirect về đây sau khi thanh toán
 const vnpayReturn = async (req, res) => {
   try {
     const ok = verifyVnpayReturn(
@@ -93,7 +89,7 @@ const vnpayReturn = async (req, res) => {
       await Booking.findByIdAndUpdate(pay.booking, { paymentStatus: "paid" });
     }
 
-    // ✅ Redirect về app Expo (deep link)
+    // Redirect về app Expo (deep link)
     const redirectBase = decodeURIComponent(
       pay.vnpReturnUrl || req.query.vnp_ReturnUrl || ""
     );
@@ -102,15 +98,12 @@ const vnpayReturn = async (req, res) => {
         ? `${redirectBase}`
         : `${redirectBase}?status=failed`;
 
-    // ⚠️ Nếu FE gửi returnUrl là exp://192.168.1.16:8081/--/payment-success
-    // VNPay sẽ redirect về link đó (mở app ngay)
     return res.redirect(successLink);
   } catch (err) {
     return res.status(400).send(`<h3>Error: ${err.message}</h3>`);
   }
 };
 
-// ✅ GET /api/payments/vnpay/ipn (callback server-to-server)
 const vnpayIpn = async (req, res) => {
   try {
     const ok = verifyVnpayReturn(

@@ -2,7 +2,6 @@ const Booking = require('../../models/booking/booking.model');
 const Feedback = require('../../models/feedback/feedback.model');
 const mongoose = require('mongoose');
 
-// Create feedback: only booking owner (driver) can create AND booking.status === 'completed'
 const createFeedback = async (req, res) => {
   try {
     const { bookingId, rating, comment, images } = req.body || {};
@@ -47,7 +46,6 @@ const createFeedback = async (req, res) => {
 
   return res.status(201).json({ success: true, data: populated, message: 'Feedback created' });
   } catch (err) {
-    // handle unique constraint error
     if (err && err.code === 11000) {
       return res.status(409).json({ success: false, message: 'Feedback already exists for this booking' });
     }
@@ -56,7 +54,6 @@ const createFeedback = async (req, res) => {
   }
 };
 
-// Get all feedbacks — public
 const getAllFeedbacks = async (req, res) => {
   try {
     const feedbacks = await Feedback.find()
@@ -73,7 +70,6 @@ const getAllFeedbacks = async (req, res) => {
 
 module.exports = { createFeedback, getAllFeedbacks };
 
-// Get feedbacks for a given station (public) — find bookings at station then feedbacks for those bookings
 const getFeedbacksByStation = async (req, res) => {
   try {
     const { stationId } = req.params;
@@ -100,7 +96,6 @@ const getFeedbacksByStation = async (req, res) => {
   }
 };
 
-// Get current user's feedback for a specific booking (authenticated)
 const getMyFeedbackByBooking = async (req, res) => {
   try {
     const { bookingId } = req.params;
@@ -131,7 +126,6 @@ const getMyFeedbackByBooking = async (req, res) => {
   }
 };
 
-// Admin: list feedbacks with optional filters (stationId, bookingId, userId) and pagination
 const adminListFeedbacks = async (req, res) => {
   try {
     const { stationId, bookingId, userId, page = 1, limit = 50 } = req.query;
@@ -177,7 +171,6 @@ const adminListFeedbacks = async (req, res) => {
   }
 };
 
-// Admin: delete feedback by id
 const adminDeleteFeedback = async (req, res) => {
   try {
     const { id } = req.params;

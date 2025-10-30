@@ -54,17 +54,13 @@ const updateMe = async (req, res) => {
 	}
 };
 
-// Upload avatar handler (multer sets req.file)
 const uploadAvatar = async (req, res) => {
 	try {
 		if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
 		const user = await User.findById(req.user.id);
 		if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
-		// Build public URL; express serves /public statically
-		// Saved path e.g. public/uploads/avatars/filename.ext
 		const filePath = req.file.path.replace(/\\/g, '/');
-		// Remove leading 'BE/' if any and leading 'public/' for URL base
 		const publicIndex = filePath.indexOf('/public/');
 		const relative = publicIndex !== -1 ? filePath.substring(publicIndex + '/public'.length) : filePath;
 		user.avatar = relative.startsWith('/') ? relative : `/${relative}`;

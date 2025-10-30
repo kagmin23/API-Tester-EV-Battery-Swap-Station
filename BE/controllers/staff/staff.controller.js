@@ -58,7 +58,6 @@ const listSwapRequests = async (req, res) => {
   try {
     let stationId = null;
 
-    // 🔹 If staff: limit to their assigned station
     if (req.user && req.user.role === 'staff') {
       stationId = req.user.station;
 
@@ -75,15 +74,15 @@ const listSwapRequests = async (req, res) => {
             .json({ success: false, message: 'Staff not assigned to a station' });
       }
     } else {
-      // 🔹 Admin or others: can query via stationId
+      // Admin or others: can query via stationId
       stationId = req.query.stationId || null;
     }
 
-    // ✅ Remove status filter to get all bookings
+    // Remove status filter to get all bookings
     const filter = {};
     if (stationId) filter.station = stationId;
 
-    // 🔹 Fetch bookings and related info
+    // Fetch bookings and related info
     const bookings = await Booking.find(filter)
       .populate('user', 'fullName phoneNumber')
       .populate(
@@ -139,7 +138,6 @@ const confirmSwapRequest = async (req, res) => {
     const requestedStatus = body.status || 'confirmed';
     const { id } = req.params;
 
-    // 🧠 Điều chỉnh logic chuyển trạng thái
     // pending → confirmed / cancelled
     // ready → completed
     const filter = {
@@ -175,7 +173,7 @@ const confirmSwapRequest = async (req, res) => {
     booking.status = requestedStatus;
     await booking.save();
 
-    // 🪫 Update battery status + history
+    // Update battery status + history
     if (booking.battery) {
       if (requestedStatus === 'confirmed') {
         await Battery.findByIdAndUpdate(booking.battery, { status: 'in-use' });
@@ -223,7 +221,6 @@ const confirmSwapRequest = async (req, res) => {
   }
 };
 
-// Record a returned swap battery (complete the booking)
 const recordSwapReturn = async (req, res) => {
   try {
     const { id } = req.params; // bookingId

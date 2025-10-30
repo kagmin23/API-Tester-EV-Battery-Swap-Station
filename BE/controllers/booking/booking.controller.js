@@ -233,12 +233,10 @@ const getBookingDetail = async (req, res) => {
   }
 };
 
-// Driver completes a booking. Only the booking owner (driver) can mark as completed.
 const completeBooking = async (req, res) => {
   try {
     const { id } = req.params; // bookingId
 
-    // Find booking that belongs to current driver and is confirmed
     const b = await Booking.findOne({
       bookingId: id,
       user: req.user.id,
@@ -252,15 +250,15 @@ const completeBooking = async (req, res) => {
       });
     }
 
-    // ✅ Change booking status → ready
+    // Change booking status → ready
     b.status = "ready";
     await b.save();
 
-    // ✅ Update battery status → in-use
+    // Update battery status → in-use
     if (b.battery) {
       await Battery.findByIdAndUpdate(b.battery, { status: "in-use" });
 
-      // ✅ Record battery history
+      // Record battery history
       await BatteryHistory.create({
         battery: b.battery,
         station: b.station,

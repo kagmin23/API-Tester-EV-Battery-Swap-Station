@@ -32,7 +32,6 @@ const formatVehicle = (v) => ({
   updated_at: v.updatedAt,
 });
 
-// Create (link) vehicle to current user
 const createVehicle = async (req, res) => {
   try {
     const body = vehicleCreateSchema.parse(req.body);
@@ -66,7 +65,6 @@ const createVehicle = async (req, res) => {
   }
 };
 
-// List current user's vehicles; admin can list all with query ?all=true
 const listVehicles = async (req, res) => {
   try {
     const isAdmin = req.user.role === 'admin';
@@ -80,7 +78,6 @@ const listVehicles = async (req, res) => {
   }
 };
 
-// Get vehicle by id (vehicle_id) if owned or admin
 const getVehicle = async (req, res) => {
   try {
     const { id } = req.params;
@@ -103,7 +100,6 @@ const vehicleUpdateSchema = z.object({
   model_year: z.number().int().min(1900).max(new Date().getFullYear() + 1).optional(),
 });
 
-// Update vehicle (owner or admin). VIN is not updatable here to avoid conflicts.
 const updateVehicle = async (req, res) => {
   try {
     const { id } = req.params;
@@ -135,7 +131,6 @@ const updateVehicle = async (req, res) => {
   }
 };
 
-// Delete vehicle (owner or admin)
 const deleteVehicle = async (req, res) => {
   try {
     const { id } = req.params;

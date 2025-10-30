@@ -395,7 +395,66 @@ const createStation = async (req, res) => {
   }
 };
 
-// Assign one or multiple staff members to a station (admin only)
+const updateStationSchema = z.object({
+  stationName: z.string().min(2).optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  district: z.string().optional(),
+  map_url: z.string().url().optional(),
+  capacity: z.number().int().min(0).optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+});
+
+const updateStation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = updateStationSchema.parse(req.body);
+    const station = await Station.findById(id);
+    if (!station) return res.status(404).json({ success: false, message: 'Station not found' });
+
+    if (typeof body.stationName !== 'undefined') station.stationName = body.stationName;
+    if (typeof body.address !== 'undefined') station.address = body.address;
+    if (typeof body.city !== 'undefined') station.city = body.city;
+    if (typeof body.district !== 'undefined') station.district = body.district;
+    if (typeof body.map_url !== 'undefined') station.map_url = body.map_url;
+    if (typeof body.capacity !== 'undefined') station.capacity = body.capacity;
+
+    // If lat/lng both provided, update location
+    if (typeof body.lat !== 'undefined' && typeof body.lng !== 'undefined') {
+      station.location = { type: 'Point', coordinates: [body.lng, body.lat] };
+    } else if (typeof body.lat !== 'undefined' || typeof body.lng !== 'undefined') {
+      // If only one coordinate provided, reject to avoid inconsistent state
+      return res.status(400).json({ success: false, message: 'Both lat and lng must be provided to update location' });
+    }
+
+    await station.save();
+    return res.status(200).json({ success: true, data: station, message: 'Station updated' });
+  } catch (err) {
+    if (err instanceof ZodError) return res.status(400).json({ success: false, message: err.errors?.[0]?.message || 'Invalid input' });
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+const deleteStation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const station = await Station.findById(id);
+    if (!station) return res.status(404).json({ success: false, message: 'Station not found' });
+
+    // Prevent deletion if there are available batteries
+    const available = station.availableBatteries ?? (station.batteryCounts ? station.batteryCounts.available : 0);
+    if (available && available > 0) {
+      return res.status(400).json({ success: false, message: 'Station has available batteries and cannot be deleted' });
+    }
+
+    await Station.findByIdAndDelete(id);
+    return res.status(200).json({ success: true, data: { id }, message: 'Station deleted' });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
 const assignStaffToStationSchema = z.object({
   staffIds: z.array(z.string()).optional(),
   staffId: z.string().optional(),
@@ -428,7 +487,6 @@ const assignStaffToStation = async (req, res) => {
   }
 };
 
-// Remove staff from station (admin only)
 const removeStaffFromStation = async (req, res) => {
   try {
     const { id: stationId, staffId } = req.params;
@@ -471,7 +529,6 @@ const removeStaffFromStation = async (req, res) => {
   }
 };
 
-// Delete staff account by id (admin only)
 const deleteStaff = async (req, res) => {
   try {
     const { id } = req.params;
@@ -487,7 +544,6 @@ const deleteStaff = async (req, res) => {
   }
 };
 
-// Change user status (driver or staff) to active/locked
 const changeUserStatusSchema = z.object({ status: z.enum(['active', 'locked']) });
 const changeUserStatus = async (req, res) => {
   try {
@@ -514,7 +570,6 @@ const changeUserStatus = async (req, res) => {
   }
 };
 
-// Admin: change user role
 const changeUserRoleSchema = z.object({ role: z.enum(["admin", "driver", "staff"]) });
 const changeUserRole = async (req, res) => {
   try {
@@ -555,6 +610,8 @@ module.exports = {
   reportsUsage,
   aiPredictions,
   createStation,
+  updateStation,
+  deleteStation,
   changeUserRole,
   changeUserStatus,
   assignStaffToStation,

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, deletePlan, reportsOverview, reportsUsage, aiPredictions, createStation, changeUserRole, changeUserStatus, assignStaffToStation, removeStaffFromStation } = require('../../controllers/admin/admin.controller');
+const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, deletePlan, reportsOverview, reportsUsage, aiPredictions, createStation, updateStation, deleteStation, changeUserRole, changeUserStatus, assignStaffToStation, removeStaffFromStation } = require('../../controllers/admin/admin.controller');
 const feedbackController = require('../../controllers/feedback/feedback.controller');
 
 // Public endpoint: list stations is accessible to unauthenticated users (e.g., drivers)
@@ -179,6 +179,78 @@ router.post('/stations', createStation);
  *         description: Unauthorized
  */
 router.get('/stations/:id', getStation);
+/**
+ * @swagger
+ * /api/admin/stations/{id}:
+ *   patch:
+ *     summary: Update a station (admin)
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               stationName:
+ *                 type: string
+ *               address:
+ *                 type: string
+ *               city:
+ *                 type: string
+ *               district:
+ *                 type: string
+ *               map_url:
+ *                 type: string
+ *                 format: url
+ *               capacity:
+ *                 type: integer
+ *               lat:
+ *                 type: number
+ *               lng:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Station updated
+ *       400:
+ *         description: Invalid input
+ *       404:
+ *         description: Station not found
+ */
+router.patch('/stations/:id', updateStation);
+
+/**
+ * @swagger
+ * /api/admin/stations/{id}:
+ *   delete:
+ *     summary: Delete a station (admin)
+ *     description: Deletes a station if it has no available batteries. Uses legacy `availableBatteries` or `batteryCounts.available` to determine availability.
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Station deleted
+ *       400:
+ *         description: Cannot delete station with available batteries
+ *       404:
+ *         description: Station not found
+ */
+router.delete('/stations/:id', deleteStation);
 /**
  * @swagger
  * /api/admin/stations/{id}/assign-staff:
