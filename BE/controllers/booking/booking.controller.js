@@ -4,6 +4,7 @@ const Station = require("../../models/station/station.model");
 const Vehicle = require("../../models/vehicle/vehicle.model");
 const Battery = require("../../models/battery/battery.model");
 const BatteryHistory = require("../../models/battery/batteryHistory.model");
+const User = require('../../models/auth/auth.model');
 
 const createSchema = z.object({
   station_id: z.string(),
@@ -292,11 +293,21 @@ const completeBooking = async (req, res) => {
       await Battery.findByIdAndUpdate(b.battery, { status: "in-use" });
 
       // Record battery history
+      // Resolve driver's full name for nicer history message. Keep id in parentheses for compatibility.
+      let driverName = null;
+      try {
+        const drv = await User.findById(req.user.id).select('fullName');
+        driverName = drv && drv.fullName ? drv.fullName : null;
+      } catch (e) {
+        driverName = null;
+      }
+      const driverLabel = driverName ? `Driver ${driverName} (${req.user.id})` : `Driver ${req.user.id}`;
+
       await BatteryHistory.create({
         battery: b.battery,
         station: b.station,
         action: "check-out",
-        details: `Driver ${req.user.id} marked booking as ready and took the battery.`,
+        details: `${driverLabel} marked booking as ready and took the battery.`,
       });
     }
 

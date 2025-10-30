@@ -55,6 +55,21 @@ const createSubscriptionPayment = async (req, res) => {
     if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
     if (plan.status !== 'active') return res.status(400).json({ success: false, message: 'Plan is not active' });
 
+    // Enforce one active subscription per driver: user must not have any non-expired subscription
+    const now = new Date();
+    const existingNonExpired = await UserSubscription.findOne({
+      user: req.user.id,
+      status: { $in: ['active', 'in-use'] },
+      $or: [
+        { end_date: { $exists: false } },
+        { end_date: null },
+        { end_date: { $gt: now } },
+      ],
+    });
+    if (existingNonExpired) {
+      return res.status(400).json({ success: false, message: 'You already have an active subscription. Please wait until it expires before purchasing a new plan.' });
+    }
+
     // Check slot availability
     if (plan.quantity_slot !== null && plan.quantity_slot !== undefined) {
       const activeCount = await UserSubscription.countDocuments({ plan: plan._id, status: 'active' });
@@ -176,10 +191,19 @@ const purchaseSubscription = async (req, res) => {
       }
     }
 
-    // Prevent duplicate active subscription for same user+plan
-    const existingActive = await UserSubscription.findOne({ plan: plan._id, user: req.user.id, status: 'active' });
-    if (existingActive) {
-      return res.status(400).json({ success: false, message: 'User already has an active subscription for this plan' });
+    // Prevent any active/non-expired subscription for this user (must wait until current subscription expires)
+    const now = new Date();
+    const existingNonExpired = await UserSubscription.findOne({
+      user: req.user.id,
+      status: { $in: ['active', 'in-use'] },
+      $or: [
+        { end_date: { $exists: false } },
+        { end_date: null },
+        { end_date: { $gt: now } },
+      ],
+    });
+    if (existingNonExpired) {
+      return res.status(400).json({ success: false, message: 'You already have an active subscription. Please wait until it expires before purchasing a new plan.' });
     }
 
     // If user has a cancelled subscription for same plan, reactivate it
@@ -235,18 +259,14 @@ const confirmPurchase = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only drivers can confirm subscription purchases' });
     }
 
-    const { subscriptionId } = req.body || {};
-    if (!subscriptionId) return res.status(400).json({ success: false, message: 'subscriptionId is required' });
+    // accept planId and find the user's subscription for that plan
+    const { planId } = req.body || {};
+    if (!planId) return res.status(400).json({ success: false, message: 'planId is required' });
 
-    const sub = await UserSubscription.findById(subscriptionId);
-    if (!sub) return res.status(404).json({ success: false, message: 'Subscription not found' });
+    const sub = await UserSubscription.findOne({ plan: planId, user: req.user.id });
+    if (!sub) return res.status(404).json({ success: false, message: 'Subscription for this plan not found' });
 
-    // ensure the subscription belongs to the authenticated user
-    if (sub.user.toString() !== req.user.id.toString()) {
-      return res.status(403).json({ success: false, message: 'You are not allowed to confirm this subscription' });
-    }
-
-    // Only allow transition to 'in-use' from 'active'
+    // Only allow transition to 'in-use' from 'active' (or from 'in-use' is error)
     if (sub.status === 'in-use') {
       return res.status(400).json({ success: false, message: 'Subscription is already in-use' });
     }

@@ -85,7 +85,8 @@ const batteryLogForStaff = async (req, res) => {
 
     const histories = await BatteryHistory.find({ battery: batteryId }).sort({ createdAt: -1 }).lean();
 
-    const driverIdRegex = /Driver\s+([a-fA-F0-9]{24})/;
+  // Match either: "Driver <hex24>" or "Driver <name> (<hex24>)" to support both legacy and new messages
+  const driverIdRegex = /Driver(?:\s+[^\(]*)?\s*\(?([a-fA-F0-9]{24})\)?/;
     const driverIds = new Set();
     histories.forEach(h => {
       if (h.details) {
@@ -265,30 +266,49 @@ const confirmSwapRequest = async (req, res) => {
     if (booking.battery) {
       if (requestedStatus === 'confirmed') {
         await Battery.findByIdAndUpdate(booking.battery, { status: 'in-use' });
+        // Resolve staff fullName for history message
+        let staffName = null;
+        try {
+          const s = await User.findById(req.user.id).select('fullName');
+          staffName = s && s.fullName ? s.fullName : null;
+        } catch (e) { staffName = null; }
+        const staffLabel = staffName ? `Staff ${staffName} (${req.user.id})` : `Staff ${req.user.id}`;
         await BatteryHistory.create({
           battery: booking.battery,
           station: booking.station,
           action: 'swap',
           soh: null,
-          details: `Swap confirmed by staff ${req.user.id}`,
+          details: `Swap confirmed by ${staffLabel}`,
         });
       } else if (requestedStatus === 'cancelled') {
         await Battery.findByIdAndUpdate(booking.battery, { status: 'idle' });
+        let staffName2 = null;
+        try {
+          const s2 = await User.findById(req.user.id).select('fullName');
+          staffName2 = s2 && s2.fullName ? s2.fullName : null;
+        } catch (e) { staffName2 = null; }
+        const staffLabel2 = staffName2 ? `Staff ${staffName2} (${req.user.id})` : `Staff ${req.user.id}`;
         await BatteryHistory.create({
           battery: booking.battery,
           station: booking.station,
           action: 'cancel',
           soh: null,
-          details: `Swap cancelled by staff ${req.user.id}`,
+          details: `Swap cancelled by ${staffLabel2}`,
         });
       } else if (requestedStatus === 'completed') {
         await Battery.findByIdAndUpdate(booking.battery, { status: 'in-use' });
+        let staffName3 = null;
+        try {
+          const s3 = await User.findById(req.user.id).select('fullName');
+          staffName3 = s3 && s3.fullName ? s3.fullName : null;
+        } catch (e) { staffName3 = null; }
+        const staffLabel3 = staffName3 ? `Staff ${staffName3} (${req.user.id})` : `Staff ${req.user.id}`;
         await BatteryHistory.create({
           battery: booking.battery,
           station: booking.station,
           action: 'return',
           soh: null,
-          details: `Swap completed by staff ${req.user.id}`,
+          details: `Swap completed by ${staffLabel3}`,
         });
       }
     }
@@ -334,7 +354,14 @@ const recordSwapReturn = async (req, res) => {
     if (booking.battery) {
       // mark battery as idle (or charging depending on workflow)
       await Battery.findByIdAndUpdate(booking.battery, { status: 'idle' });
-      await BatteryHistory.create({ battery: booking.battery, station: booking.station, action: 'return', soh: null, details: `Swap return recorded by staff ${req.user.id}` });
+      // Resolve staff fullName for nicer history message
+      let staffName4 = null;
+      try {
+        const s4 = await User.findById(req.user.id).select('fullName');
+        staffName4 = s4 && s4.fullName ? s4.fullName : null;
+      } catch (e) { staffName4 = null; }
+      const staffLabel4 = staffName4 ? `Staff ${staffName4} (${req.user.id})` : `Staff ${req.user.id}`;
+      await BatteryHistory.create({ battery: booking.battery, station: booking.station, action: 'return', soh: null, details: `Swap return recorded by ${staffLabel4}` });
     }
 
     return res.status(200).json({ success: true, data: null, message: 'Swap return recorded' });

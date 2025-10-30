@@ -3,6 +3,7 @@ const Battery = require("../../models/battery/battery.model");
 const Complaint = require("../../models/complaint/complaint.model");
 const SubscriptionPlan = require("../../models/subscription/subscriptionPlan.model");
 const User = require("../../models/auth/auth.model");
+const UserSubscription = require('../../models/subscription/userSubscription.model');
 const { z, ZodError } = require("zod");
 
 const listStations = async (req, res) => {
@@ -368,9 +369,22 @@ const deletePlan = async (req, res) => {
     if (!plan) {
       return res.status(404).json({ success: false, message: 'Subscription plan not found' });
     }
+      // Prevent deletion if drivers are currently using this plan (in-use)
+      // or if there are active subscriptions that haven't reached end_date yet.
+      const now = new Date();
+      const blockingSub = await UserSubscription.findOne({
+        plan: id,
+        $or: [
+          { status: 'in-use' },
+          { status: 'active', end_date: { $gt: now } },
+        ],
+      });
+      if (blockingSub) {
+        return res.status(400).json({ success: false, message: 'Cannot delete plan while it is within its active duration and in use by drivers' });
+      }
 
-    // Delete the plan
-    await SubscriptionPlan.findByIdAndDelete(id);
+      // Delete the plan
+      await SubscriptionPlan.findByIdAndDelete(id);
 
     return res.status(200).json({
       success: true,
