@@ -68,17 +68,50 @@ const createBooking = async (req, res) => {
       });
     }
 
+    // If user has an active UserSubscription for this plan-like (matching plan) OR any active subscription,
+    // allow booking without payment: create booking with status 'confirmed', attach subscription and decrement remaining_swaps.
+    // We'll find any active subscription for the user with remaining_swaps > 0 or unlimited (null).
+    let attachedSubscription = null;
+    try {
+      const activeSub = await UserSubscription.findOne({ user: req.user.id, status: 'active', $or: [ { remaining_swaps: { $gt: 0 } }, { remaining_swaps: null } ] });
+      if (activeSub) {
+        // decrement remaining_swaps atomically if not unlimited
+        if (activeSub.remaining_swaps !== null && activeSub.remaining_swaps !== undefined) {
+          const updated = await UserSubscription.findOneAndUpdate(
+            { _id: activeSub._id, remaining_swaps: { $gt: 0 } },
+            { $inc: { remaining_swaps: -1 } },
+            { new: true }
+          );
+          if (!updated) {
+            // someone else consumed last swap, treat as no subscription
+            attachedSubscription = null;
+          } else {
+            attachedSubscription = updated;
+          }
+        } else {
+          // unlimited swaps
+          attachedSubscription = activeSub;
+        }
+      }
+    } catch (errSubAttach) {
+      console.error('Error attaching subscription to booking:', errSubAttach);
+      attachedSubscription = null;
+    }
+
     // Update battery status to 'is-booking'
     await Battery.findByIdAndUpdate(body.battery_id, { status: "is-booking" });
 
-    const booking = await Booking.create({
+    const bookingPayload = {
       user: req.user.id,
       station: station._id,
       vehicle: body.vehicle_id,
       battery: body.battery_id,
       scheduledTime: body.scheduled_time,
-      status: "pending",
-    });
+      status: attachedSubscription ? 'confirmed' : 'pending',
+    };
+    if (attachedSubscription) bookingPayload.subscription = attachedSubscription._id;
+
+    const booking = await Booking.create(bookingPayload);
 
     return res.status(201).json({
       success: true,

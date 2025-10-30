@@ -145,6 +145,65 @@ connectDB().then(() => {
   } catch (err) {
     console.error('Background job for support requests failed to start:', err.message);
   }
+  // Background job: auto-restore subscriptions whose end_date passed, if the plan wasn't updated by admin
+  try {
+    const SubscriptionPlan = require('./models/subscription/subscriptionPlan.model');
+    const UserSubscription = require('./models/subscription/userSubscription.model');
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+
+    const checkAndRestoreSubscriptions = async () => {
+      const now = new Date();
+      // Find subscriptions that have an end_date in the past and are not cancelled
+      const q = {
+        end_date: { $lte: now },
+        status: { $ne: 'cancelled' },
+      };
+      const expiredSubs = await UserSubscription.find(q).limit(500);
+      if (expiredSubs.length === 0) return;
+
+      for (const sub of expiredSubs) {
+        try {
+          const plan = await SubscriptionPlan.findById(sub.plan);
+          if (!plan) continue;
+
+          // If admin updated the plan after the subscription was created, skip auto-restore
+          if (plan.updatedAt && sub.createdAt && plan.updatedAt > sub.createdAt) {
+            // admin changed plan after purchase — do not auto-restore
+            continue;
+          }
+
+          // Reactivate the same subscription: set new start/end and reset remaining_swaps
+          const start = new Date();
+          let end = null;
+          if (plan.durations && Number.isFinite(Number(plan.durations))) {
+            const d = new Date(start);
+            d.setMonth(d.getMonth() + Number(plan.durations));
+            end = d;
+          }
+          const remaining_swaps = (plan.count_swap === null || plan.count_swap === undefined) ? null : plan.count_swap;
+
+          sub.start_date = start;
+          sub.end_date = end;
+          sub.remaining_swaps = remaining_swaps;
+          sub.status = 'active';
+          await sub.save();
+          console.log(`Auto-restored subscription ${sub._id} for user ${sub.user}`);
+        } catch (errSub) {
+          console.error('Failed to auto-restore subscription', sub._id, errSub.message || errSub);
+        }
+      }
+    };
+
+    // run every 24 hours
+    setInterval(() => {
+      checkAndRestoreSubscriptions().catch(err => console.error('Error in subscription auto-restore job:', err));
+    }, ONE_DAY);
+
+    // Run once at startup
+    checkAndRestoreSubscriptions().catch(err => console.error('Error running subscription auto-restore at startup:', err));
+  } catch (err) {
+    console.error('Background job for subscription auto-restore failed to start:', err.message);
+  }
 }).catch(err => {
   console.error('Database connection failed:', err.message);
   process.exit(1);

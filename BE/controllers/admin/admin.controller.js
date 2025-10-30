@@ -150,8 +150,48 @@ const resolveComplaint = async (req, res) => {
 
 const listCustomers = async (req, res) => {
   try {
-    const items = await User.find({ role: "driver" }).select("-password");
-    return res.status(200).json({ success: true, data: items });
+    const items = await User.find({ role: "driver" }).select("-password").lean();
+
+    // attach active subscription (if any) to each user
+    const userIds = items.map(u => u._id);
+    const subs = await require('../../models/subscription/userSubscription.model').find({ user: { $in: userIds }, status: 'active' }).lean();
+    // populate plan details for subscriptions
+    const planIdsFromSubs = subs.map(s => s.plan).filter(Boolean).map(String);
+    const uniquePlanIds = Array.from(new Set(planIdsFromSubs));
+    const planDocs = uniquePlanIds.length ? await SubscriptionPlan.find({ _id: { $in: uniquePlanIds } }).lean() : [];
+  const planMapBySubs = planDocs.reduce((acc, p) => (acc[p._id.toString()] = p, acc), {});
+
+    const subsByUser = subs.reduce((acc, s) => {
+      acc[s.user.toString()] = acc[s.user.toString()] || [];
+  const planDoc = planMapBySubs[s.plan?.toString()];
+      acc[s.user.toString()].push({
+        id: s._id,
+        plan: planDoc ? { id: planDoc._id, subscriptionName: planDoc.subscriptionName, description: planDoc.description, price: planDoc.price, durations: planDoc.durations } : s.plan,
+        start_date: s.start_date,
+        end_date: s.end_date,
+        remaining_swaps: s.remaining_swaps,
+        status: s.status,
+      });
+      return acc;
+    }, {});
+
+    const enhanced = items.map(u => ({
+      ...u,
+      subscriptions: subsByUser[u._id.toString()] || [],
+    }));
+
+    // also return counts per plan for admin overview
+    const usageAgg = await require('../../models/subscription/userSubscription.model').aggregate([
+      { $match: { status: 'active' } },
+      { $group: { _id: '$plan', count: { $sum: 1 } } }
+    ]);
+    // populate plan details
+    const planIds = usageAgg.map(a => a._id).filter(Boolean);
+    const plans = await SubscriptionPlan.find({ _id: { $in: planIds } }).lean();
+    const planMap = plans.reduce((acc, p) => (acc[p._id.toString()] = p, acc), {});
+    const planUsage = usageAgg.map(a => ({ plan: planMap[a._id.toString()] || { id: a._id }, count: a.count }));
+
+    return res.status(200).json({ success: true, data: enhanced, planUsage });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }

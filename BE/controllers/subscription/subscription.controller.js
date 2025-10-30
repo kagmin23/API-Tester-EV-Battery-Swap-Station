@@ -7,7 +7,37 @@ const getPlansForUser = async (req, res) => {
   try {
     const status = req.query.status || 'active';
     const plans = await SubscriptionPlan.find({ status });
-    return res.status(200).json({ success: true, data: plans });
+
+    // Enhance each plan with availability and the current user's subscription info
+    const enhanced = await Promise.all(plans.map(async (plan) => {
+      const planObj = plan.toObject();
+
+      // compute active count if quantity_slot is set
+      let activeCount = null;
+      if (plan.quantity_slot !== null && plan.quantity_slot !== undefined) {
+        activeCount = await UserSubscription.countDocuments({ plan: plan._id, status: 'active' });
+      }
+
+      // find current user's subscription for this plan (any status)
+      let userSub = null;
+      if (req.user && req.user.id) {
+        userSub = await UserSubscription.findOne({ plan: plan._id, user: req.user.id });
+      }
+
+      return {
+        ...planObj,
+        availableSlots: (plan.quantity_slot !== null && plan.quantity_slot !== undefined) ? Math.max(0, plan.quantity_slot - (activeCount || 0)) : null,
+        userSubscription: userSub ? {
+          id: userSub._id,
+          status: userSub.status,
+          remaining_swaps: userSub.remaining_swaps,
+          start_date: userSub.start_date,
+          end_date: userSub.end_date,
+        } : null,
+      };
+    }));
+
+    return res.status(200).json({ success: true, data: enhanced });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
@@ -61,7 +91,64 @@ const createSubscriptionPayment = async (req, res) => {
       extra: { type: 'subscription', plan: plan._id.toString() },
     });
 
-    return res.status(201).json({ success: true, data: { url: paymentUrl, txnRef, paymentId: payment._id } });
+    // Immediately mark as paid and create the UserSubscription record so the driver
+    // is considered to have purchased the plan right away. We still return the VNPay URL
+    // for compatibility, but payment.status will be set to 'paid' and subscriptionId attached.
+    try {
+      const existingActive = await UserSubscription.findOne({ plan: plan._id, user: req.user.id, status: 'active' });
+      if (existingActive) {
+  payment.extra = payment.extra || {};
+  payment.extra.subscriptionId = existingActive._id.toString();
+  payment.status = 'success';
+        await payment.save();
+        return res.status(200).json({ success: true, data: { url: paymentUrl, txnRef, paymentId: payment._id, subscriptionId: existingActive._id } });
+      }
+
+      const cancelled = await UserSubscription.findOne({ plan: plan._id, user: req.user.id, status: 'cancelled' });
+      const start = new Date();
+      let end = null;
+      if (plan.durations && Number.isFinite(Number(plan.durations))) {
+        const d = new Date(start);
+        d.setMonth(d.getMonth() + Number(plan.durations));
+        end = d;
+      }
+      const remaining_swaps = (plan.count_swap === null || plan.count_swap === undefined) ? null : plan.count_swap;
+
+      if (cancelled) {
+        cancelled.start_date = start;
+        cancelled.end_date = end;
+        cancelled.remaining_swaps = remaining_swaps;
+        cancelled.status = 'active';
+        const sub = await cancelled.save();
+  payment.extra = payment.extra || {};
+  payment.extra.subscriptionId = sub._id.toString();
+  payment.status = 'success';
+        await payment.save();
+        return res.status(201).json({ success: true, data: { url: paymentUrl, txnRef, paymentId: payment._id, subscriptionId: sub._id } });
+      }
+
+      // create new subscription
+      const sub = await UserSubscription.create({
+        user: req.user.id,
+        plan: plan._id,
+        start_date: start,
+        end_date: end,
+        remaining_swaps,
+        status: 'active',
+      });
+  payment.extra = payment.extra || {};
+  payment.extra.subscriptionId = sub._id.toString();
+  payment.status = 'success';
+      await payment.save();
+
+      return res.status(201).json({ success: true, data: { url: paymentUrl, txnRef, paymentId: payment._id, subscriptionId: sub._id } });
+    } catch (errInner) {
+      // If subscription creation fails, keep payment as init and return error (include message for debugging)
+      console.error('subscription creation after payment failed:', errInner && errInner.stack ? errInner.stack : errInner);
+      // don't expose stack in production; this is for dev/debugging
+      const msg = errInner && errInner.message ? errInner.message : 'Failed to create subscription after payment';
+      return res.status(500).json({ success: false, message: msg });
+    }
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
@@ -141,8 +228,44 @@ const purchaseSubscription = async (req, res) => {
   }
 };
 
+const confirmPurchase = async (req, res) => {
+  try {
+    // only drivers can confirm purchases
+    if (!req.user || req.user.role !== 'driver') {
+      return res.status(403).json({ success: false, message: 'Only drivers can confirm subscription purchases' });
+    }
+
+    const { subscriptionId } = req.body || {};
+    if (!subscriptionId) return res.status(400).json({ success: false, message: 'subscriptionId is required' });
+
+    const sub = await UserSubscription.findById(subscriptionId);
+    if (!sub) return res.status(404).json({ success: false, message: 'Subscription not found' });
+
+    // ensure the subscription belongs to the authenticated user
+    if (sub.user.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ success: false, message: 'You are not allowed to confirm this subscription' });
+    }
+
+    // Only allow transition to 'in-use' from 'active'
+    if (sub.status === 'in-use') {
+      return res.status(400).json({ success: false, message: 'Subscription is already in-use' });
+    }
+    if (sub.status !== 'active') {
+      return res.status(400).json({ success: false, message: `Subscription cannot be confirmed from status '${sub.status}'` });
+    }
+
+    sub.status = 'in-use';
+    await sub.save();
+
+    return res.status(200).json({ success: true, data: sub });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   getPlansForUser,
   purchaseSubscription,
   createSubscriptionPayment,
+  confirmPurchase,
 };

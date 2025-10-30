@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../../middlewares/auth/auth.middleware');
 const { getMe, updateMe, uploadAvatar } = require('../../controllers/user/user.controller');
-const { getPlansForUser, purchaseSubscription, createSubscriptionPayment } = require('../../controllers/subscription/subscription.controller');
+const { getPlansForUser, purchaseSubscription, createSubscriptionPayment, confirmPurchase } = require('../../controllers/subscription/subscription.controller');
 const uploadAvatarMiddleware = require('../../middlewares/upload/avatarUpload.middleware');
 
 /**
@@ -50,6 +50,70 @@ router.get('/me', getMe);
  */
 router.get('/subscriptions/plans', getPlansForUser);
 router.post('/subscriptions/create-payment', createSubscriptionPayment);
+/**
+ * @swagger
+ * /api/users/subscriptions/confirm:
+ *   post:
+ *     summary: Confirm a subscription purchase and mark it as in-use (driver only)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [subscriptionId]
+ *             properties:
+ *               subscriptionId:
+ *                 type: string
+ *                 description: The id of the UserSubscription to mark as in-use
+ *     responses:
+ *       200:
+ *         description: Subscription confirmed and set to in-use
+ *       400:
+ *         description: Invalid request or subscription cannot be confirmed from current status
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (not the owner or not a driver)
+ *       404:
+ *         description: Subscription not found
+ */
+router.post('/subscriptions/confirm', confirmPurchase);
+/**
+ * @swagger
+ * /api/users/subscriptions/create-payment:
+ *   post:
+ *     summary: Create a VNPay payment for purchasing a subscription plan (driver only)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [planId, returnUrl]
+ *             properties:
+ *               planId:
+ *                 type: string
+ *                 description: Subscription plan id to purchase
+ *               returnUrl:
+ *                 type: string
+ *                 description: URL that VNPay will redirect back to after payment (frontend page)
+ *     responses:
+ *       201:
+ *         description: Payment created; returns VNPay URL and paymentId
+ *       400:
+ *         description: Invalid input or no available slots
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden (only drivers allowed)
+ */
 
 /**
  * @swagger

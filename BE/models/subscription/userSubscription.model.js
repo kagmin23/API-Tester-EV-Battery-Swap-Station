@@ -7,7 +7,7 @@ const userSubscriptionSchema = new mongoose.Schema({
   end_date: { type: Date },
   // null = unlimited
   remaining_swaps: { type: Number, min: 0, default: null },
-  status: { type: String, enum: ['active', 'expired', 'cancelled'], default: 'active' },
+  status: { type: String, enum: ['active', 'in-use', 'expired', 'cancelled'], default: 'active' },
 }, { timestamps: true });
 
 module.exports = mongoose.model('UserSubscription', userSubscriptionSchema);
