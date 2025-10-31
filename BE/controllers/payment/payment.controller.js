@@ -1,5 +1,6 @@
 const Payment = require("../../models/payment/payment.model");
 const Booking = require("../../models/booking/booking.model");
+const Transaction = require("../../models/transaction/transaction.model");
 const { createVnpayUrl, verifyVnpayReturn } = require("../../utils/vnpay");
 
 // ✅ POST /api/payments/vnpay/create
@@ -13,7 +14,6 @@ const createVnpayPayment = async (req, res) => {
         message: "amount and returnUrl are required",
       });
     }
-
     if (!orderInfo && bookingId) orderInfo = `Booking #${bookingId}`;
     if (!orderInfo) orderInfo = "VNPay Payment";
 
@@ -52,7 +52,7 @@ const createVnpayPayment = async (req, res) => {
       status: "init",
       vnpTxnRef: txnRef,
       vnpOrderInfo: orderInfo,
-        vnpReturnUrl: returnUrl,
+      vnpReturnUrl: returnUrl,
     });
 
     return res.status(201).json({
@@ -71,26 +71,60 @@ const createVnpayPayment = async (req, res) => {
 // → VNPay sẽ redirect về đây sau khi thanh toán
 const vnpayReturn = async (req, res) => {
   try {
+    console.log("[VNPay Return] Incoming query:", req.query);
     const ok = verifyVnpayReturn(
       { ...req.query },
       process.env.VNP_HASHSECRET || "SECRET"
     );
     const txnRef = req.query.vnp_TxnRef;
     const responseCode = req.query.vnp_ResponseCode;
+    console.log("[VNPay Return] verify=", ok, "txnRef=", txnRef, "resp=", responseCode);
 
     const pay = await Payment.findOne({ vnpTxnRef: txnRef });
     if (!pay) {
+      console.warn("[VNPay Return] Payment not found by txnRef:", txnRef);
       return res.status(404).send("<h2>Payment not found</h2>");
     }
 
+    console.log("[VNPay Return] Found Payment:", {
+      id: pay._id, status: pay.status, amount: pay.amount, booking: pay.booking, station: pay.station
+    });
     pay.vnpResponseCode = responseCode;
     pay.vnpSecureHash = req.query.vnp_SecureHash;
     pay.status = ok && responseCode === "00" ? "success" : "failed";
     await pay.save();
+    console.log("[VNPay Return] Payment saved:", { id: pay._id, status: pay.status });
 
     // Nếu có booking, update paymentStatus
     if (pay.booking && pay.status === "success") {
+      console.log("[VNPay Return] Booking present, updating paymentStatus and ensuring Transaction...");
       await Booking.findByIdAndUpdate(pay.booking, { paymentStatus: "paid" });
+
+      // Tạo transaction sau khi thanh toán thành công (idempotent theo booking)
+      const existingTxn = await Transaction.findOne({ booking: pay.booking });
+      console.log("[VNPay Return] existingTxn:", existingTxn ? existingTxn._id : null);
+      if (!existingTxn) {
+        const bookingDoc = await Booking.findById(pay.booking).lean();
+        console.log("[VNPay Return] Creating Transaction with: ", {
+          user: pay.user,
+          station: pay.station || bookingDoc?.station,
+          vehicle: bookingDoc?.vehicle,
+          battery: bookingDoc?.battery,
+          booking: pay.booking,
+          cost: pay.amount,
+        });
+        const createdTxn = await Transaction.create({
+          user: pay.user,
+          station: pay.station || bookingDoc?.station,
+          vehicle: bookingDoc?.vehicle || undefined,
+          battery: bookingDoc?.battery || undefined,
+          booking: pay.booking,
+          cost: pay.amount,
+        });
+        console.log("[VNPay Return] Transaction created successfully:", createdTxn);
+      } else {
+        console.log("[VNPay Return] Transaction already exists, skipping create.");
+      }
     }
 
     // ✅ Redirect về app Expo (deep link)
@@ -113,44 +147,72 @@ const vnpayReturn = async (req, res) => {
 // ✅ GET /api/payments/vnpay/ipn (callback server-to-server)
 const vnpayIpn = async (req, res) => {
   try {
+    const method = req.method;
+    const params = (req.body && Object.keys(req.body).length > 0) ? { ...req.body } : { ...req.query };
+    console.log("[VNPay IPN] Incoming:", { method, originalUrl: req.originalUrl });
+    console.log("[VNPay IPN] Headers:", req.headers);
+    console.log("[VNPay IPN] Params:", params);
+
     const ok = verifyVnpayReturn(
-      { ...req.query },
+      { ...params },
       process.env.VNP_HASHSECRET || "SECRET"
     );
 
     if (!ok) {
+      console.warn("[VNPay IPN] Invalid signature");
       return res
         .status(200)
         .json({ RspCode: "97", Message: "Invalid signature" });
     }
 
-    const txnRef = req.query.vnp_TxnRef;
-    const responseCode = req.query.vnp_ResponseCode;
+    const txnRef = params.vnp_TxnRef;
+    const responseCode = params.vnp_ResponseCode;
     const pay = await Payment.findOne({ vnpTxnRef: txnRef });
 
     if (!pay) {
+      console.warn("[VNPay IPN] Payment not found by txnRef:", txnRef);
       return res
         .status(200)
         .json({ RspCode: "01", Message: "Payment not found" });
     }
 
-    if (pay.status === "success") {
-      return res
-        .status(200)
-        .json({ RspCode: "02", Message: "Already processed" });
+    // Cập nhật trạng thái nếu chưa là success
+    if (pay.status !== "success") {
+      pay.vnpResponseCode = responseCode;
+      pay.vnpSecureHash = params.vnp_SecureHash;
+      pay.status = responseCode === "00" ? "success" : "failed";
+      await pay.save();
+      console.log("[VNPay IPN] Payment saved:", { id: pay._id, status: pay.status });
     }
 
-    pay.vnpResponseCode = responseCode;
-    pay.vnpSecureHash = req.query.vnp_SecureHash;
-    pay.status = responseCode === "00" ? "success" : "failed";
-    await pay.save();
-
-    if (pay.booking && responseCode === "00") {
+    // Chỉ tạo Transaction khi thanh toán thành công
+    if (pay.status === "success" && pay.booking) {
+      console.log("[VNPay IPN] Booking present, updating paymentStatus and ensuring Transaction...");
       await Booking.findByIdAndUpdate(pay.booking, { paymentStatus: "paid" });
+
+      // Tạo transaction idempotent theo booking
+      let createdTxn = null;
+      const existingTxn = await Transaction.findOne({ booking: pay.booking });
+      console.log("[VNPay IPN] existingTxn:", existingTxn ? existingTxn._id : null);
+      if (!existingTxn) {
+        const bookingDoc = await Booking.findById(pay.booking).lean();
+        createdTxn = await Transaction.create({
+          user: pay.user,
+          station: pay.station || bookingDoc?.station,
+          vehicle: bookingDoc?.vehicle || undefined,
+          battery: bookingDoc?.battery || undefined,
+          booking: pay.booking,
+          cost: pay.amount,
+        });
+        console.log("[VNPay IPN] Transaction created successfully:", createdTxn);
+      } else {
+        console.log("[VNPay IPN] Transaction already exists for booking:", existingTxn._id);
+      }
     }
 
     return res.status(200).json({ RspCode: "00", Message: "Success" });
   } catch (err) {
+    console.error("[VNPay IPN] Error:", err);
     return res.status(200).json({ RspCode: "99", Message: "Unknown error" });
   }
 };

@@ -5,10 +5,16 @@ function sortObject(obj) {
   const sorted = {};
   const keys = Object.keys(obj).sort();
   keys.forEach((key) => {
-    sorted[key] = encodeURIComponent(obj[key]).replace(/%20/g, "+");
+    // Không encode amount vì VNPAY yêu cầu giá trị là số nguyên
+    if (key === "vnp_Amount") {
+      sorted[key] = obj[key];
+    } else {
+      sorted[key] = encodeURIComponent(obj[key]).replace(/%20/g, "+");
+    }
   });
   return sorted;
 }
+
 
 function createVnpayUrl({
   amount,
@@ -53,7 +59,7 @@ function createVnpayUrl({
   const paymentUrl = `${vnp_Url}?${Object.keys(vnp_Params)
     .map((key) => `${key}=${vnp_Params[key]}`)
     .join("&")}&vnp_SecureHash=${vnp_SecureHash}`;
-
+  console.log("✅ [DEBUG] Payment URL created:", paymentUrl);
   return { paymentUrl, txnRef };
 }
 
@@ -66,8 +72,10 @@ function verifyVnpayReturn(query, vnp_HashSecret) {
   delete query.vnp_SecureHash;
   delete query.vnp_SecureHashType;
 
-  const sorted = sortObject(query);
-  const signData = qs.stringify(sorted, { encode: false });
+  // IMPORTANT: Do NOT re-encode return values; VNPay already sends encoded values.
+  // We only need to sort keys and join as key=value with '&'
+  const keys = Object.keys(query).sort();
+  const signData = keys.map((k) => `${k}=${query[k]}`).join("&");
 
   const hmac = crypto.createHmac("sha512", vnp_HashSecret);
   const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
