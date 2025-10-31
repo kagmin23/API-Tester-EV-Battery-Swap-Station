@@ -92,5 +92,7 @@ router.get('/vnpay/return', vnpayReturn);
  *         description: IPN received
  */
 router.get('/vnpay/ipn', vnpayIpn);
+// Accept POST as well (some gateways send IPN via POST)
+router.post('/vnpay/ipn', vnpayIpn);
 
 module.exports = router;

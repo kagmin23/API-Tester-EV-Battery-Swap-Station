@@ -5,8 +5,6 @@ const transactionSchema = new mongoose.Schema({
   transactionId: { type: String, unique: true, default: () => crypto.randomUUID(), index: true },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', index: true },
   station: { type: mongoose.Schema.Types.ObjectId, ref: 'Station', index: true },
-  battery_given: { type: String, trim: true },
-  battery_returned: { type: String, trim: true },
   vehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle', index: true },
   battery: { type: mongoose.Schema.Types.ObjectId, ref: 'Battery', index: true },
   booking: { type: mongoose.Schema.Types.ObjectId, ref: 'Booking', index: true },

@@ -26,6 +26,9 @@ var usersRouter = require("./routes/users");
 
 var app = express();
 
+// Ensure correct client IP when behind proxies/tunnels (e.g., ngrok, cloudflare)
+app.set("trust proxy", true);
+
 // 👉 BỎ QUA trang cảnh báo của ngrok
 app.use((req, res, next) => {
   res.setHeader("ngrok-skip-browser-warning", "true");
