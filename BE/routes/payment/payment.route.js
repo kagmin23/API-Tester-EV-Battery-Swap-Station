@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../../middlewares/auth/auth.middleware');
-const { createVnpayPayment, vnpayReturn, vnpayIpn } = require('../../controllers/payment/payment.controller');
+const { createVnpayPayment, vnpayReturn, vnpayIpn, getVnpayPaymentStatus } = require('../../controllers/payment/payment.controller');
 
 /**
  * @swagger
@@ -94,5 +94,37 @@ router.get('/vnpay/return', vnpayReturn);
 router.get('/vnpay/ipn', vnpayIpn);
 // Accept POST as well (some gateways send IPN via POST)
 router.post('/vnpay/ipn', vnpayIpn);
+
+/**
+ * @swagger
+ * /api/payments/vnpay/status:
+ *   get:
+ *     summary: Get VNPay payment status
+ *     description: Returns payment status and whether a transaction record exists
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: paymentId
+ *         schema:
+ *           type: string
+ *         description: Payment document ID
+ *       - in: query
+ *         name: txnRef
+ *         schema:
+ *           type: string
+ *         description: VNPay transaction reference
+ *     responses:
+ *       200:
+ *         description: Payment status information
+ *       400:
+ *         description: Missing identifiers
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Payment not found
+ */
+router.get('/vnpay/status', authenticate, getVnpayPaymentStatus);
 
 module.exports = router;
