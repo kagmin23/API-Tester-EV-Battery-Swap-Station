@@ -13,6 +13,8 @@ const paymentSchema = new mongoose.Schema({
   vnpOrderInfo: { type: String },
   vnpResponseCode: { type: String },
   vnpSecureHash: { type: String },
+  vnpReturnUrl: { type: String },
+  clientReturnUrl: { type: String },
   extra: { type: Object },
 }, { timestamps: true });
 

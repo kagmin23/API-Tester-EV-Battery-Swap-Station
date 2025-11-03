@@ -59,7 +59,6 @@ function createVnpayUrl({
   const paymentUrl = `${vnp_Url}?${Object.keys(vnp_Params)
     .map((key) => `${key}=${vnp_Params[key]}`)
     .join("&")}&vnp_SecureHash=${vnp_SecureHash}`;
-  console.log("✅ [DEBUG] Payment URL created:", paymentUrl);
   return { paymentUrl, txnRef };
 }
 
@@ -69,18 +68,19 @@ function createVnpayUrl({
  */
 function verifyVnpayReturn(query, vnp_HashSecret) {
   const secureHash = query.vnp_SecureHash;
-  delete query.vnp_SecureHash;
-  delete query.vnp_SecureHashType;
+  const queryParams = { ...query };
+  delete queryParams.vnp_SecureHash;
+  delete queryParams.vnp_SecureHashType;
 
-  // IMPORTANT: Do NOT re-encode return values; VNPay already sends encoded values.
-  // We only need to sort keys and join as key=value with '&'
-  const keys = Object.keys(query).sort();
-  const signData = keys.map((k) => `${k}=${query[k]}`).join("&");
+  const keys = Object.keys(queryParams).sort();
+  const signData = keys.map((k) => {
+    const value = queryParams[k];
+    const encodedValue = encodeURIComponent(value).replace(/%20/g, '+');
+    return `${k}=${encodedValue}`;
+  }).join("&");
 
   const hmac = crypto.createHmac("sha512", vnp_HashSecret);
   const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
 
   return secureHash === signed;
-}
-
-module.exports = { createVnpayUrl, verifyVnpayReturn };
+} module.exports = { createVnpayUrl, verifyVnpayReturn };

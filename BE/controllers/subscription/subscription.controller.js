@@ -48,8 +48,13 @@ const createSubscriptionPayment = async (req, res) => {
     if (!req.user || req.user.role !== 'driver') {
       return res.status(403).json({ success: false, message: 'Only drivers can purchase subscriptions' });
     }
-    const { planId, returnUrl } = req.body || {};
-    if (!planId || !returnUrl) return res.status(400).json({ success: false, message: 'planId and returnUrl are required' });
+    const { planId, returnUrl: clientReturnUrl } = req.body || {};
+    if (!planId || !clientReturnUrl) return res.status(400).json({ success: false, message: 'planId and returnUrl are required' });
+
+    const serverReturnUrl = process.env.VNP_RETURN_URL;
+    if (!serverReturnUrl) {
+      return res.status(500).json({ success: false, message: 'Server return URL is not configured' });
+    }
 
     const plan = await SubscriptionPlan.findById(planId);
     if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
@@ -89,7 +94,7 @@ const createSubscriptionPayment = async (req, res) => {
       amount,
       orderInfo,
       ipAddr: req.ip,
-      returnUrl,
+      returnUrl: serverReturnUrl,
       vnp_TmnCode,
       vnp_HashSecret,
       vnp_Url,
@@ -102,7 +107,8 @@ const createSubscriptionPayment = async (req, res) => {
       status: 'init',
       vnpTxnRef: txnRef,
       vnpOrderInfo: orderInfo,
-      vnpReturnUrl: returnUrl,
+      vnpReturnUrl: serverReturnUrl,
+      clientReturnUrl,
       extra: { type: 'subscription', plan: plan._id.toString() },
     });
 
@@ -112,9 +118,9 @@ const createSubscriptionPayment = async (req, res) => {
     try {
       const existingActive = await UserSubscription.findOne({ plan: plan._id, user: req.user.id, status: 'active' });
       if (existingActive) {
-  payment.extra = payment.extra || {};
-  payment.extra.subscriptionId = existingActive._id.toString();
-  payment.status = 'success';
+        payment.extra = payment.extra || {};
+        payment.extra.subscriptionId = existingActive._id.toString();
+        payment.status = 'success';
         await payment.save();
         return res.status(200).json({ success: true, data: { url: paymentUrl, txnRef, paymentId: payment._id, subscriptionId: existingActive._id } });
       }
@@ -135,9 +141,9 @@ const createSubscriptionPayment = async (req, res) => {
         cancelled.remaining_swaps = remaining_swaps;
         cancelled.status = 'active';
         const sub = await cancelled.save();
-  payment.extra = payment.extra || {};
-  payment.extra.subscriptionId = sub._id.toString();
-  payment.status = 'success';
+        payment.extra = payment.extra || {};
+        payment.extra.subscriptionId = sub._id.toString();
+        payment.status = 'success';
         await payment.save();
         return res.status(201).json({ success: true, data: { url: paymentUrl, txnRef, paymentId: payment._id, subscriptionId: sub._id } });
       }
@@ -151,9 +157,9 @@ const createSubscriptionPayment = async (req, res) => {
         remaining_swaps,
         status: 'active',
       });
-  payment.extra = payment.extra || {};
-  payment.extra.subscriptionId = sub._id.toString();
-  payment.status = 'success';
+      payment.extra = payment.extra || {};
+      payment.extra.subscriptionId = sub._id.toString();
+      payment.status = 'success';
       await payment.save();
 
       return res.status(201).json({ success: true, data: { url: paymentUrl, txnRef, paymentId: payment._id, subscriptionId: sub._id } });

@@ -3,10 +3,21 @@ const Booking = require("../../models/booking/booking.model");
 const Transaction = require("../../models/transaction/transaction.model");
 const { createVnpayUrl, verifyVnpayReturn } = require("../../utils/vnpay");
 
+/**
+ * Create a VNPay payment URL and initialize payment record
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {number} req.body.amount - Payment amount in VND
+ * @param {string} [req.body.orderInfo] - Order description (optional)
+ * @param {string} [req.body.bookingId] - ID of the booking (optional)
+ * @param {string} req.body.returnUrl - Client deep link to redirect after payment completion
+ * @param {Object} res - Express response object
+ * @returns {Promise<Object>} Payment URL and transaction reference
+ */
 const createVnpayPayment = async (req, res) => {
   try {
-    let { amount, orderInfo, bookingId, returnUrl } = req.body;
-    if (!amount || !returnUrl) {
+    let { amount, orderInfo, bookingId, returnUrl: clientReturnUrl } = req.body;
+    if (!amount || !clientReturnUrl) {
       return res.status(400).json({
         success: false,
         message: "amount and returnUrl are required",
@@ -30,12 +41,20 @@ const createVnpayPayment = async (req, res) => {
     const vnp_Url =
       process.env.VNP_URL ||
       "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
+    const serverReturnUrl = process.env.VNP_RETURN_URL;
+
+    if (!serverReturnUrl) {
+      return res.status(500).json({
+        success: false,
+        message: "Server return URL is not configured",
+      });
+    }
 
     const { paymentUrl, txnRef } = createVnpayUrl({
       amount,
       orderInfo,
       ipAddr: req.ip,
-      returnUrl,
+      returnUrl: serverReturnUrl,
       vnp_TmnCode,
       vnp_HashSecret,
       vnp_Url,
@@ -50,7 +69,8 @@ const createVnpayPayment = async (req, res) => {
       status: "init",
       vnpTxnRef: txnRef,
       vnpOrderInfo: orderInfo,
-      vnpReturnUrl: returnUrl,
+      vnpReturnUrl: serverReturnUrl,
+      clientReturnUrl,
     });
 
     return res.status(201).json({
@@ -67,14 +87,12 @@ const createVnpayPayment = async (req, res) => {
 
 const vnpayReturn = async (req, res) => {
   try {
-    console.log("[VNPay Return] Incoming query:", req.query);
     const ok = verifyVnpayReturn(
       { ...req.query },
       process.env.VNP_HASHSECRET || "SECRET"
     );
     const txnRef = req.query.vnp_TxnRef;
     const responseCode = req.query.vnp_ResponseCode;
-    console.log("[VNPay Return] verify=", ok, "txnRef=", txnRef, "resp=", responseCode);
 
     const pay = await Payment.findOne({ vnpTxnRef: txnRef });
     if (!pay) {
@@ -82,33 +100,24 @@ const vnpayReturn = async (req, res) => {
       return res.status(404).send("<h2>Payment not found</h2>");
     }
 
-    console.log("[VNPay Return] Found Payment:", {
-      id: pay._id, status: pay.status, amount: pay.amount, booking: pay.booking, station: pay.station
-    });
     pay.vnpResponseCode = responseCode;
     pay.vnpSecureHash = req.query.vnp_SecureHash;
     pay.status = ok && responseCode === "00" ? "success" : "failed";
     await pay.save();
-    console.log("[VNPay Return] Payment saved:", { id: pay._id, status: pay.status });
 
-    // Nếu có booking, update paymentStatus
-    if (pay.booking && pay.status === "success") {
-      console.log("[VNPay Return] Booking present, updating paymentStatus and ensuring Transaction...");
+    if (pay.status === "success") {
+      //log successful payment
+      console.log("✅ [VNPay Return] Payment successful:", {
+        id: pay._id,
+        amount: pay.amount,
+        booking: pay.booking
+      });
+    } if (pay.booking && pay.status === "success") {
       await Booking.findByIdAndUpdate(pay.booking, { paymentStatus: "paid" });
 
-      // Tạo transaction sau khi thanh toán thành công (idempotent theo booking)
       const existingTxn = await Transaction.findOne({ booking: pay.booking });
-      console.log("[VNPay Return] existingTxn:", existingTxn ? existingTxn._id : null);
       if (!existingTxn) {
         const bookingDoc = await Booking.findById(pay.booking).lean();
-        console.log("[VNPay Return] Creating Transaction with: ", {
-          user: pay.user,
-          station: pay.station || bookingDoc?.station,
-          vehicle: bookingDoc?.vehicle,
-          battery: bookingDoc?.battery,
-          booking: pay.booking,
-          cost: pay.amount,
-        });
         const createdTxn = await Transaction.create({
           user: pay.user,
           station: pay.station || bookingDoc?.station,
@@ -117,9 +126,13 @@ const vnpayReturn = async (req, res) => {
           booking: pay.booking,
           cost: pay.amount,
         });
-        console.log("[VNPay Return] Transaction created successfully:", createdTxn);
-      } else {
-        console.log("[VNPay Return] Transaction already exists, skipping create.");
+
+        //Log transaction created
+        console.log("✅ [VNPay Return] Transaction created:", {
+          id: createdTxn._id,
+          transactionId: createdTxn.transactionId,
+          cost: createdTxn.cost
+        });
       }
     }
 
@@ -188,9 +201,8 @@ const vnpayReturn = async (req, res) => {
     }
 
     // Redirect về app Expo (deep link)
-    const redirectBase = decodeURIComponent(
-      pay.vnpReturnUrl || req.query.vnp_ReturnUrl || ""
-    );
+    const rawRedirect = pay.clientReturnUrl || pay.vnpReturnUrl || req.query.vnp_ReturnUrl || "";
+    const redirectBase = rawRedirect ? decodeURIComponent(rawRedirect) : "";
     const successLink =
       pay.status === "success"
         ? `${redirectBase}`
@@ -206,9 +218,6 @@ const vnpayIpn = async (req, res) => {
   try {
     const method = req.method;
     const params = (req.body && Object.keys(req.body).length > 0) ? { ...req.body } : { ...req.query };
-    console.log("[VNPay IPN] Incoming:", { method, originalUrl: req.originalUrl });
-    console.log("[VNPay IPN] Headers:", req.headers);
-    console.log("[VNPay IPN] Params:", params);
 
     const ok = verifyVnpayReturn(
       { ...params },
@@ -216,7 +225,6 @@ const vnpayIpn = async (req, res) => {
     );
 
     if (!ok) {
-      console.warn("[VNPay IPN] Invalid signature");
       return res
         .status(200)
         .json({ RspCode: "97", Message: "Invalid signature" });
@@ -227,7 +235,6 @@ const vnpayIpn = async (req, res) => {
     const pay = await Payment.findOne({ vnpTxnRef: txnRef });
 
     if (!pay) {
-      console.warn("[VNPay IPN] Payment not found by txnRef:", txnRef);
       return res
         .status(200)
         .json({ RspCode: "01", Message: "Payment not found" });
@@ -239,21 +246,24 @@ const vnpayIpn = async (req, res) => {
       pay.vnpSecureHash = params.vnp_SecureHash;
       pay.status = responseCode === "00" ? "success" : "failed";
       await pay.save();
-      console.log("[VNPay IPN] Payment saved:", { id: pay._id, status: pay.status });
+
+      if (pay.status === "success") {
+        console.log("✅ [VNPay IPN] Payment successful:", {
+          id: pay._id,
+          amount: pay.amount
+        });
+      }
     }
 
     // Chỉ tạo Transaction khi thanh toán thành công
     if (pay.status === "success" && pay.booking) {
-      console.log("[VNPay IPN] Booking present, updating paymentStatus and ensuring Transaction...");
       await Booking.findByIdAndUpdate(pay.booking, { paymentStatus: "paid" });
 
       // Tạo transaction idempotent theo booking
-      let createdTxn = null;
       const existingTxn = await Transaction.findOne({ booking: pay.booking });
-      console.log("[VNPay IPN] existingTxn:", existingTxn ? existingTxn._id : null);
       if (!existingTxn) {
         const bookingDoc = await Booking.findById(pay.booking).lean();
-        createdTxn = await Transaction.create({
+        const createdTxn = await Transaction.create({
           user: pay.user,
           station: pay.station || bookingDoc?.station,
           vehicle: bookingDoc?.vehicle || undefined,
@@ -261,9 +271,11 @@ const vnpayIpn = async (req, res) => {
           booking: pay.booking,
           cost: pay.amount,
         });
-        console.log("[VNPay IPN] Transaction created successfully:", createdTxn);
-      } else {
-        console.log("[VNPay IPN] Transaction already exists for booking:", existingTxn._id);
+        console.log("✅ [VNPay IPN] Transaction created:", {
+          id: createdTxn._id,
+          transactionId: createdTxn.transactionId,
+          cost: createdTxn.cost
+        });
       }
     }
 
@@ -325,4 +337,82 @@ const vnpayIpn = async (req, res) => {
   }
 };
 
-module.exports = { createVnpayPayment, vnpayReturn, vnpayIpn };
+const getVnpayPaymentStatus = async (req, res) => {
+  try {
+    const { paymentId, txnRef } = req.query;
+
+    if (!paymentId && !txnRef) {
+      return res.status(400).json({
+        success: false,
+        message: "paymentId or txnRef is required",
+      });
+    }
+
+    const criteria = paymentId ? { _id: paymentId } : { vnpTxnRef: txnRef };
+    const paymentDoc = await Payment.findOne(criteria)
+      .populate({ path: "booking", select: "bookingId paymentStatus user station" })
+      .populate({ path: "station", select: "name code" });
+
+    if (!paymentDoc) {
+      return res.status(404).json({
+        success: false,
+        message: "Payment not found",
+      });
+    }
+
+    const isOwner = paymentDoc.user?.toString() === req.user.id;
+    const privilegedRoles = ["admin", "staff"];
+    const isPrivileged = req.user && privilegedRoles.includes(req.user.role);
+    if (!isOwner && !isPrivileged) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden",
+      });
+    }
+
+    const bookingRef = paymentDoc.booking && paymentDoc.booking._id ? paymentDoc.booking._id : paymentDoc.booking;
+    let transactionDoc = null;
+    if (bookingRef) {
+      transactionDoc = await Transaction.findOne({ booking: bookingRef }).lean();
+    }
+
+    const payment = paymentDoc.toObject({ virtuals: true });
+    const response = {
+      paymentId: payment._id,
+      status: payment.status,
+      amount: payment.amount,
+      currency: payment.currency,
+      vnpTxnRef: payment.vnpTxnRef,
+      vnpResponseCode: payment.vnpResponseCode,
+      clientReturnUrl: payment.clientReturnUrl,
+      vnpReturnUrl: payment.vnpReturnUrl,
+      hasTransaction: !!transactionDoc,
+      booking: payment.booking
+        ? {
+          id: payment.booking._id,
+          bookingId: payment.booking.bookingId,
+          paymentStatus: payment.booking.paymentStatus,
+        }
+        : null,
+      transaction: transactionDoc
+        ? {
+          id: transactionDoc._id,
+          transactionId: transactionDoc.transactionId,
+          cost: transactionDoc.cost,
+          createdAt: transactionDoc.createdAt,
+        }
+        : null,
+      createdAt: payment.createdAt,
+      updatedAt: payment.updatedAt,
+    };
+
+    return res.status(200).json({ success: true, data: response });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+module.exports = { createVnpayPayment, vnpayReturn, vnpayIpn, getVnpayPaymentStatus };
