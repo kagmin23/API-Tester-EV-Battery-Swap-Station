@@ -7,6 +7,7 @@ const {
 const {
   createBattery,
   getBattery,
+  getBatteryById,
   updateBattery,
   deleteBattery,
   listBatteriesAdmin,
@@ -78,20 +79,74 @@ router.get("/model", getModelBatteries);
  * @swagger
  * /api/batteries/{id}:
  *   get:
- *     summary: Public - Get battery by ID
+ *     summary: Public - Get battery by ID with formatted response
  *     tags: [Batteries]
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
- *           type: string
+ *           type: string 
  *         description: Battery ObjectId
  *     responses:
  *       200:
- *         description: Battery details
+ *         description: Battery details with formatted response
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     battery_id:
+ *                       type: string
+ *                     serial:
+ *                       type: string
+ *                     model:
+ *                       type: string
+ *                     soh:
+ *                       type: number
+ *                     status:
+ *                       type: string
+ *                       enum: [charging, full, faulty, in-use, idle, is-booking]
+ *                     manufacturer:
+ *                       type: string
+ *                     capacity_kWh:
+ *                       type: number
+ *                     voltage:
+ *                       type: number
+ *                     price:
+ *                       type: number
+ *                     station:
+ *                       type: object
+ *                       properties:
+ *                         station_id:
+ *                           type: string
+ *                         station_name:
+ *                           type: string
+ *                         address:
+ *                           type: string
+ *                         city:
+ *                           type: string
+ *                         district:
+ *                           type: string
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
  *       404:
  *         description: Battery not found
+ */
+router.get("/:id", getBatteryById);
+
+/**
+ * @swagger
  * /api/batteries/station/{stationId}:
  *   get:
  *     summary: Public - Get all batteries in a specific station
@@ -354,7 +409,7 @@ router.get("/station/:stationId/management", getStationBatteryManagement);
  */
 
 // Protect admin battery management routes
-router.use(authenticate, authorizeRoles("admin"));
+router.use(authenticate, authorizeRoles("admin", "staff"));
 
 /**
  * @swagger
