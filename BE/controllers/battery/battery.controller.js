@@ -56,6 +56,38 @@ exports.getBattery = async (req, res) => {
   }
 };
 
+exports.getBatteryById = async (req, res) => {
+  try {
+    const battery = await Battery.findById(req.params.id).populate('station', 'stationName address city district');
+    if (!battery) return res.status(404).json({ success: false, message: 'Battery not found' });
+
+    const formattedData = {
+      battery_id: battery._id,
+      serial: battery.serial,
+      model: battery.model || null,
+      soh: battery.soh,
+      status: battery.status,
+      manufacturer: battery.manufacturer || null,
+      capacity_kWh: battery.capacity_kWh || null,
+      voltage: battery.voltage || null,
+      price: battery.price,
+      station: battery.station ? {
+        station_id: battery.station._id,
+        station_name: battery.station.stationName,
+        address: battery.station.address,
+        city: battery.station.city || null,
+        district: battery.station.district || null
+      } : null,
+      created_at: battery.createdAt,
+      updated_at: battery.updatedAt
+    };
+
+    return res.json({ success: true, data: formattedData });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 exports.updateBattery = async (req, res) => {
   try {
     const schema = z.object({
