@@ -126,9 +126,9 @@
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/api/stations",
+          "raw": "{{baseUrl}}/api/stations/all",
           "host": ["{{baseUrl}}"],
-          "path": ["api", "stations"]
+          "path": ["api", "stations", "all"]
         }
       }
     },

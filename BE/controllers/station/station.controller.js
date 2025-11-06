@@ -140,8 +140,25 @@ const listStationRatings = async (req, res) => {
   }
 };
 
+const listAllStations = async (req, res) => {
+  try {
+    const stations = await Station.find({})
+      .select('stationName address city district capacity batteryCounts location')
+      .sort({ stationName: 1 });
+
+    return res.status(200).json({
+      success: true,
+      count: stations.length,
+      data: stations
+    });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   listNearbyStations,
+  listAllStations,
   getStationDetail,
   postStationRating,
   listStationRatings,

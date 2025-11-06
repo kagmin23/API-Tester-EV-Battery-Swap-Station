@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../../middlewares/auth/auth.middleware');
-const { listNearbyStations, getStationDetail, postStationRating, listStationRatings } = require('../../controllers/station/station.controller');
+const { listNearbyStations, listAllStations, getStationDetail, postStationRating, listStationRatings } = require('../../controllers/station/station.controller');
 
 /**
  * @swagger
@@ -40,6 +40,7 @@ const { listNearbyStations, getStationDetail, postStationRating, listStationRati
  *         description: Unauthorized
  */
 router.get('/', authenticate, listNearbyStations); // /api/stations?lat=&lng=
+router.get('/all', authenticate, listAllStations); // /api/stations/all
 
 /**
  * @swagger

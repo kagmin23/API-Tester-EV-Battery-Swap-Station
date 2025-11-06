@@ -8,8 +8,8 @@ class PredictionService {
     try {
       const historicalData = await dataProcessor.fetchHistoricalData(stationId, 90);
 
-      if (historicalData.length < 48) {
-        throw new Error('Không đủ dữ liệu lịch sử để dự báo (cần ít nhất 48 giờ)');
+      if (historicalData.length < 10) {
+        throw new Error('Không đủ dữ liệu lịch sử để dự báo (cần ít nhất 10 giờ)');
       }
 
       const counts = historicalData.map(d => d.count);
@@ -57,11 +57,11 @@ class PredictionService {
       const peakDemand = Math.max(...demands);
       const avgDemand = demands.reduce((a, b) => a + b, 0) / demands.length;
 
-      const currentCapacity = station.capacity || 0;
+      const currentCapacity = station.capacity || 1;
       const currentUtilization = await this.calculateCurrentUtilization(stationId);
 
       const recommendedCapacity = Math.ceil(peakDemand * (1 + bufferRate));
-      const forecastUtilization = (avgDemand / currentCapacity) * 100;
+      const forecastUtilization = currentCapacity > 0 ? (avgDemand / currentCapacity) * 100 : 0;
 
       let urgency = 'low';
       let priority = 3;
@@ -83,12 +83,12 @@ class PredictionService {
           current_capacity: currentCapacity,
           recommended_capacity: recommendedCapacity,
           capacity_gap: recommendedCapacity - currentCapacity,
-          gap_percentage: ((recommendedCapacity - currentCapacity) / currentCapacity * 100).toFixed(1)
+          gap_percentage: currentCapacity > 0 ? ((recommendedCapacity - currentCapacity) / currentCapacity * 100).toFixed(1) : '0'
         },
         utilization: {
           current: currentUtilization,
           forecast_avg: forecastUtilization.toFixed(1),
-          forecast_peak: (peakDemand / currentCapacity * 100).toFixed(1)
+          forecast_peak: currentCapacity > 0 ? (peakDemand / currentCapacity * 100).toFixed(1) : '0'
         },
         demand_analysis: {
           peak_demand: peakDemand,
@@ -149,6 +149,10 @@ class PredictionService {
     startDate.setDate(startDate.getDate() - 30);
 
     const station = await Station.findById(stationId);
+    if (!station || !station.capacity || station.capacity === 0) {
+      return 0;
+    }
+
     const txCount = await Transaction.countDocuments({
       station: stationId,
       transaction_time: { $gte: startDate, $lte: endDate }
@@ -169,7 +173,7 @@ class PredictionService {
     if (recommended > current) {
       const gap = recommended - current;
       return (
-        `Dựa trên phân tích AI với mô hình LSTM, nhu cầu dự kiến trung bình đạt ${utilization.toFixed(1)}% ` +
+        `Dựa trên phân tích AI với mô hình Holt-Winters, nhu cầu dự kiến trung bình đạt ${utilization.toFixed(1)}% ` +
         `công suất với nhu cầu cao điểm lên tới ${peakDemand.toFixed(0)} giao dịch/giờ. ` +
         `Khuyến nghị tăng công suất từ ${current} lên ${recommended} vị trí (+${gap} vị trí) ` +
         `với độ ưu tiên ${urgency}. Điều này sẽ đảm bảo dịch vụ ổn định, giảm thời gian chờ đợi ` +

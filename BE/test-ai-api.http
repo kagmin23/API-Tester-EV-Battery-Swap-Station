@@ -51,7 +51,7 @@ Content-Type: application/json
 ### STEP 4: Get All Stations (để lấy stationId)
 ### ============================================
 
-GET {{baseUrl}}/api/stations
+GET {{baseUrl}}/api/stations/all
 Authorization: Bearer {{token}}
 
 ### 📝 Copy một stationId từ response

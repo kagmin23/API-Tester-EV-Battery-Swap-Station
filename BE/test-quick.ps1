@@ -31,7 +31,7 @@ Write-Host "MAPE: $($trainResult.data.evaluation.mape)%" -ForegroundColor Green
 
 # Step 4: Get stations
 Write-Host "`n4. Get stations..." -ForegroundColor Yellow
-$stations = Invoke-RestMethod -Uri "$BaseUrl/api/stations" -Headers $headers
+$stations = Invoke-RestMethod -Uri "$BaseUrl/api/stations/all" -Headers $headers
 $StationId = $stations.data[0]._id
 Write-Host "Using station: $($stations.data[0].stationName)" -ForegroundColor Green
 
