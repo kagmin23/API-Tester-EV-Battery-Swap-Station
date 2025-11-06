@@ -1,4 +1,3 @@
-const tf = require('@tensorflow/tfjs-node');
 const { mean, standardDeviation, min, max } = require('simple-statistics');
 const Transaction = require('../../models/transaction/transaction.model');
 const Booking = require('../../models/booking/booking.model');

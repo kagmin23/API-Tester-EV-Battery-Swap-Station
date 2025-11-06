@@ -1,0 +1,204 @@
+{
+  "info": {
+    "name": "AI Forecasting API",
+    "description": "Test collection for EV Battery Swap AI endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "stationId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    const response = pm.response.json();",
+              "    pm.collectionVariables.set('token', response.access_token);",
+              "    console.log('Token saved:', response.access_token);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"your_password\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "2. Check Model Status",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/model/status",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "model", "status"]
+        }
+      }
+    },
+    {
+      "name": "3. Train Model",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"daysBack\": 90,\n  \"stationId\": null\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/train",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "train"]
+        }
+      }
+    },
+    {
+      "name": "4. Get All Stations",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    const response = pm.response.json();",
+              "    if (response.data && response.data.length > 0) {",
+              "        pm.collectionVariables.set('stationId', response.data[0]._id);",
+              "        console.log('StationId saved:', response.data[0]._id);",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/stations",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "stations"]
+        }
+      }
+    },
+    {
+      "name": "5. Forecast Demand",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"periods\": 168\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/forecast/demand",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "forecast", "demand"]
+        }
+      }
+    },
+    {
+      "name": "6. Get Capacity Recommendation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"stationId\": \"{{stationId}}\",\n  \"bufferRate\": 0.2\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/recommendations/capacity",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "recommendations", "capacity"]
+        }
+      }
+    },
+    {
+      "name": "7. Get All Recommendations",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/ai/recommendations/all",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "ai", "recommendations", "all"]
+        }
+      }
+    }
+  ]
+}
+
