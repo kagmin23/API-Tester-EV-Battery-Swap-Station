@@ -69,6 +69,11 @@ const listVehicles = async (req, res) => {
   try {
     const isAdmin = req.user.role === 'admin';
     const queryAll = req.query.all === 'true';
+
+    if (queryAll && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Forbidden' });
+    }
+
     let filter = { user: req.user.id };
     if (isAdmin && queryAll) filter = {};
     const vehicles = await Vehicle.find(filter).sort({ createdAt: -1 });

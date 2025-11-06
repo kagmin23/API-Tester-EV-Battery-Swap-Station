@@ -425,32 +425,98 @@ router.use(authenticate, authorizeRoles("admin", "staff"));
  *         application/json:
  *           schema:
  *             type: object
- *             required: [serial]
+ *             required: [serial, price]
  *             properties:
  *               serial:
  *                 type: string
- *               model:
- *                 type: string
- *               soh:
- *                 type: number
- *               status:
- *                 type: string
- *                 enum: [charging, full, faulty, in-use, idle]
- *               stationId:
- *                 type: string
- *               manufacturer:
- *                 type: string
- *               capacity_kWh:
- *                 type: number
+ *                 description: Battery serial number (unique)
  *               price:
  *                 type: number
+ *                 description: Battery price in VND
+ *                 example: 5000000
+ *               model:
+ *                 type: string
+ *                 description: Battery model name
+ *               soh:
+ *                 type: number
+ *                 description: State of Health (0-100)
+ *                 example: 95
+ *               status:
+ *                 type: string
+ *                 enum: [charging, full, faulty, in-use, idle, is-booking]
+ *                 description: Battery status
+ *               stationId:
+ *                 type: string
+ *                 description: Station ID where battery is located
+ *               manufacturer:
+ *                 type: string
+ *                 description: Battery manufacturer
+ *                 example: BYD
+ *               capacity_kWh:
+ *                 type: number
+ *                 description: Battery capacity in kWh
+ *                 example: 4.8
  *               voltage:
  *                 type: number
+ *                 description: Battery voltage
+ *                 example: 48
  *     responses:
  *       201:
- *         description: Battery created
+ *         description: Battery created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                     serial:
+ *                       type: string
+ *                     price:
+ *                       type: number
+ *                     model:
+ *                       type: string
+ *                     soh:
+ *                       type: number
+ *                     status:
+ *                       type: string
+ *                     station:
+ *                       type: string
+ *                     manufacturer:
+ *                       type: string
+ *                     capacity_kWh:
+ *                       type: number
+ *                     voltage:
+ *                       type: number
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
  *       400:
- *         description: Invalid input
+ *         description: Invalid input or serial already exists
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Serial already exists
+ *       404:
+ *         description: Station not found
+ *       500:
+ *         description: Server error
  */
 router.post("/", createBattery);
 

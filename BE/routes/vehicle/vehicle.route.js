@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../../middlewares/auth/auth.middleware');
+const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
 const { createVehicle, listVehicles, getVehicle, updateVehicle, deleteVehicle } = require('../../controllers/vehicle/vehicle.controller');
 
 /**
@@ -55,7 +55,7 @@ router.post('/', createVehicle);
  * @swagger
  * /api/vehicles:
  *   get:
- *     summary: List current vehicles
+ *     summary: List current vehicles for admin
  *     tags: [Vehicles]
  *     security:
  *       - bearerAuth: []
@@ -68,14 +68,14 @@ router.post('/', createVehicle);
  *       200:
  *         description: Vehicles list
  */
-router.get('/', listVehicles);
+router.get('/', listVehicles, authorizeRoles('admin'));
 
 // Get vehicle by vehicle_id
 /**
  * @swagger
- * /api/vehicles/{id}:
+ * /api/vehicles/{vehicleId}:
  *   get:
- *     summary: Get vehicle by id
+ *     summary: Get vehicle by vehicleId
  *     tags: [Vehicles]
  *     security:
  *       - bearerAuth: []

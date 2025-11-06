@@ -10,6 +10,13 @@ const batterySchema = new mongoose.Schema({
   capacity_kWh: { type: Number, min: 0 },
   price: { type: Number, min: 0, default: 0 },
   voltage: { type: Number, min: 0 },
+
+  // Vị trí hiện tại của pin trong hệ thống slot
+  currentSlot: { type: mongoose.Schema.Types.ObjectId, ref: 'BatterySlot', default: null },
+  currentPillar: { type: mongoose.Schema.Types.ObjectId, ref: 'BatteryPillar', default: null },
+
+  // Thông tin sạc
+
 }, { timestamps: true });
 
 // Middleware to update station battery counts when battery changes
