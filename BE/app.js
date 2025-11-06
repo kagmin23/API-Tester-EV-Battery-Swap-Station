@@ -21,6 +21,7 @@ const adminRoutes = require("./routes/admin/admin.route");
 const batteryRoutes = require("./routes/battery/battery.route");
 const paymentRoutes = require("./routes/payment/payment.route");
 const feedbackRoutes = require("./routes/feedback/feedback.route");
+const aiRoutes = require("./routes/ai/ai.route");
 var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
 
@@ -97,6 +98,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/batteries", batteryRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/ai', aiRoutes);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

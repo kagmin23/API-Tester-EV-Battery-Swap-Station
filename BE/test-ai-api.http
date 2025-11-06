@@ -1,0 +1,171 @@
+### 
+### AI API TESTING - REST Client
+### Install: VS Code Extension "REST Client" by Huachao Mao
+### Cách dùng: Click "Send Request" bên trên mỗi request
+###
+
+@baseUrl = http://localhost:3000
+@token = YOUR_TOKEN_HERE
+
+### ============================================
+### STEP 1: Login để lấy token
+### ============================================
+
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "your_password"
+}
+
+### 📝 Copy access_token từ response vào @token ở trên
+
+
+### ============================================
+### STEP 2: Check Model Status
+### ============================================
+
+GET {{baseUrl}}/api/ai/model/status
+Authorization: Bearer {{token}}
+
+
+### ============================================
+### STEP 3: Train Model (Chạy lần đầu)
+### ============================================
+
+POST {{baseUrl}}/api/ai/train
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "daysBack": 90,
+  "stationId": null
+}
+
+### ⏱️ Training sẽ mất 2-5 phút
+### Expected MAPE: < 10% (Excellent)
+
+
+### ============================================
+### STEP 4: Get All Stations (để lấy stationId)
+### ============================================
+
+GET {{baseUrl}}/api/stations/all
+Authorization: Bearer {{token}}
+
+### 📝 Copy một stationId từ response
+
+
+### ============================================
+### STEP 5: Forecast Demand cho 1 trạm
+### ============================================
+
+POST {{baseUrl}}/api/ai/forecast/demand
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "stationId": "YOUR_STATION_ID",
+  "periods": 168
+}
+
+### Test với periods khác nhau:
+### 24 = 1 ngày, 72 = 3 ngày, 168 = 7 ngày
+
+
+### ============================================
+### STEP 6: Get Capacity Recommendation (1 trạm)
+### ============================================
+
+POST {{baseUrl}}/api/ai/recommendations/capacity
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "stationId": "YOUR_STATION_ID",
+  "bufferRate": 0.2
+}
+
+### bufferRate: 0.2 = 20% dự phòng
+
+
+### ============================================
+### STEP 7: Get All Recommendations
+### ============================================
+
+GET {{baseUrl}}/api/ai/recommendations/all
+Authorization: Bearer {{token}}
+
+### Trả về tất cả trạm sorted by priority
+
+
+### ============================================
+### STEP 8: Test với station khác
+### ============================================
+
+POST {{baseUrl}}/api/ai/forecast/demand
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "stationId": "ANOTHER_STATION_ID",
+  "periods": 24
+}
+
+
+### ============================================
+### ADVANCED: Retrain với ít data hơn
+### ============================================
+
+POST {{baseUrl}}/api/ai/train
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "daysBack": 60,
+  "stationId": null,
+  "forceRetrain": true
+}
+
+
+### ============================================
+### ADVANCED: Test với bufferRate khác
+### ============================================
+
+POST {{baseUrl}}/api/ai/recommendations/capacity
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "stationId": "YOUR_STATION_ID",
+  "bufferRate": 0.3
+}
+
+### bufferRate càng cao = recommend capacity càng lớn
+
+
+### ============================================
+### ERROR TESTING: Invalid stationId
+### ============================================
+
+POST {{baseUrl}}/api/ai/forecast/demand
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "stationId": "invalid_id_123",
+  "periods": 24
+}
+
+### Expected: Error response
+
+
+### ============================================
+### ERROR TESTING: No token
+### ============================================
+
+GET {{baseUrl}}/api/ai/model/status
+
+### Expected: 401 Unauthorized
+
