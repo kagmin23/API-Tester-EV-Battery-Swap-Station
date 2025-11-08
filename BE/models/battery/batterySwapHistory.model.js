@@ -50,9 +50,9 @@ const batterySwapHistorySchema = new mongoose.Schema({
         required: true
     },
 
-    // Pin cũ (người dùng trả lại)
+    // Pin cũ (người dùng trả lại) - Chỉ có sau khi insertOldBattery
     oldBattery: {
-        battery: { type: mongoose.Schema.Types.ObjectId, ref: 'Battery', required: true },
+        battery: { type: mongoose.Schema.Types.ObjectId, ref: 'Battery' }, // ✅ Bỏ required
         soh: { type: Number, min: 0, max: 100 },
         chargeLevel: { type: Number, min: 0, max: 100 }, // % pin còn lại
         status: { type: String }

@@ -70,7 +70,7 @@ const getPillarsByStation = async (req, res) => {
         const pillarsWithSlots = await Promise.all(
             pillars.map(async (pillar) => {
                 const slots = await BatterySlot.find({ pillar: pillar._id })
-                    .populate('battery', 'serial model soh status')
+                    .populate('battery', 'serial model soh status price')
                     .sort({ slotNumber: 1 });
 
                 return {
@@ -123,11 +123,210 @@ const getPillarSlots = async (req, res) => {
     }
 };
 
+// Lấy chi tiết đầy đủ của 1 trụ pin theo ID
+const getPillarDetailById = async (req, res) => {
+    try {
+        const { pillarId } = req.params;
+
+        // ✅ Lấy pillar với đầy đủ thông tin
+        const pillar = await BatteryPillar.findById(pillarId)
+            .populate('station', 'stationName address city district latitude longitude');
+
+        if (!pillar) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy trụ pin'
+            });
+        }
+
+        // ✅ Lấy tất cả slots của pillar với thông tin battery và reservation
+        const slots = await BatterySlot.find({ pillar: pillarId })
+            .populate('battery', 'serial model soh status manufacturer capacity_kWh voltage price')
+            .populate('reservation.user', 'fullName email phone')
+            .populate('reservation.booking', 'bookingId scheduledTime status')
+            .populate('lastActivity.user', 'fullName email')
+            .populate('lastActivity.battery', 'serial model')
+            .sort({ slotNumber: 1 });
+
+        // ✅ Tính toán statistics
+        const totalSlots = slots.length;
+        const emptySlots = slots.filter(s => s.status === 'empty').length;
+        const occupiedSlots = slots.filter(s => s.status === 'occupied').length;
+        const reservedSlots = slots.filter(s => s.status === 'reserved').length;
+        const lockedSlots = slots.filter(s => s.status === 'locked').length;
+        const maintenanceSlots = slots.filter(s => s.status === 'maintenance').length;
+        const errorSlots = slots.filter(s => s.status === 'error').length;
+
+        // ✅ Batteries trong pillar
+        const batteriesInPillar = slots.filter(s => s.battery).map(s => ({
+            slotNumber: s.slotNumber,
+            slotCode: s.slotCode,
+            battery: s.battery,
+            slotStatus: s.status
+        }));
+
+        res.json({
+            success: true,
+            message: 'Lấy chi tiết trụ pin thành công',
+            data: {
+                pillar: {
+                    _id: pillar._id,
+                    pillarCode: pillar.pillarCode,
+                    pillarName: pillar.pillarName,
+                    pillarNumber: pillar.pillarNumber,
+                    status: pillar.status,
+                    station: pillar.station,
+                    slotStats: pillar.slotStats,
+                    createdAt: pillar.createdAt,
+                    updatedAt: pillar.updatedAt
+                },
+                statistics: {
+                    totalSlots,
+                    emptySlots,
+                    occupiedSlots,
+                    reservedSlots,
+                    lockedSlots,
+                    maintenanceSlots,
+                    errorSlots,
+                    availableBatteries: batteriesInPillar.length
+                },
+                slots,
+                batteries: batteriesInPillar
+            }
+        });
+    } catch (error) {
+        console.error('Error getting pillar detail:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi lấy chi tiết trụ pin',
+            error: error.message
+        });
+    }
+};
+
+// ✅ API mới: Lấy slots dạng grid (2D array) cho UI
+const getPillarSlotsGrid = async (req, res) => {
+    try {
+        const { pillarId } = req.params;
+        const { rows = 2, columns = 5 } = req.query; // Mặc định 2 hàng x 5 cột
+
+        // Validate pillar
+        const pillar = await BatteryPillar.findById(pillarId)
+            .populate('station', 'stationName address');
+
+        if (!pillar) {
+            return res.status(404).json({
+                success: false,
+                message: 'Không tìm thấy trụ pin'
+            });
+        }
+
+        // Lấy tất cả slots
+        const slots = await BatterySlot.find({ pillar: pillarId })
+            .populate('battery', 'serial model soh status manufacturer capacity_kWh voltage price')
+            .populate('reservation.user', 'fullName email')
+            .populate('reservation.booking', 'bookingId scheduledTime status')
+            .sort({ slotNumber: 1 });
+
+        // ✅ Tạo grid 2D array
+        const numRows = parseInt(rows);
+        const numColumns = parseInt(columns);
+        const grid = [];
+
+        // Initialize grid với null
+        for (let i = 0; i < numRows; i++) {
+            grid[i] = [];
+            for (let j = 0; j < numColumns; j++) {
+                grid[i][j] = null;
+            }
+        }
+
+        // ✅ Fill slots vào grid theo position hoặc slotNumber
+        slots.forEach((slot, index) => {
+            let row, col;
+
+            // Nếu có position.row và position.column, dùng nó
+            if (slot.position && slot.position.row && slot.position.column) {
+                row = slot.position.row - 1; // Convert to 0-based index
+                col = slot.position.column - 1;
+            } else {
+                // Nếu không có position, tính theo slotNumber
+                // Slot 1-5 → row 0, Slot 6-10 → row 1
+                row = Math.floor(index / numColumns);
+                col = index % numColumns;
+            }
+
+            // Đảm bảo không vượt quá grid
+            if (row < numRows && col < numColumns) {
+                grid[row][col] = {
+                    _id: slot._id,
+                    slotNumber: slot.slotNumber,
+                    slotCode: slot.slotCode,
+                    status: slot.status,
+                    position: {
+                        row: row + 1, // Convert back to 1-based
+                        column: col + 1
+                    },
+                    battery: slot.battery ? {
+                        _id: slot.battery._id,
+                        serial: slot.battery.serial,
+                        model: slot.battery.model,
+                        soh: slot.battery.soh,
+                        status: slot.battery.status,
+                        manufacturer: slot.battery.manufacturer,
+                        capacity_kWh: slot.battery.capacity_kWh,
+                        voltage: slot.battery.voltage,
+                        price: slot.battery.price
+                    } : null,
+                    reservation: slot.reservation && slot.reservation.booking ? {
+                        booking: slot.reservation.booking,
+                        user: slot.reservation.user,
+                        reservedAt: slot.reservation.reservedAt,
+                        expiresAt: slot.reservation.expiresAt
+                    } : null,
+                    isAlwaysEmpty: slot.isAlwaysEmpty || false
+                };
+            }
+        });
+
+        res.json({
+            success: true,
+            message: 'Lấy slot grid thành công',
+            data: {
+                pillar: {
+                    _id: pillar._id,
+                    pillarCode: pillar.pillarCode,
+                    pillarName: pillar.pillarName,
+                    pillarNumber: pillar.pillarNumber,
+                    status: pillar.status,
+                    station: pillar.station,
+                    slotStats: pillar.slotStats
+                },
+                gridLayout: {
+                    rows: numRows,
+                    columns: numColumns,
+                    totalSlots: slots.length
+                },
+                grid, // ✅ 2D array [row][column]
+                slotsList: slots // ✅ Flat array (optional, nếu FE cần)
+            }
+        });
+    } catch (error) {
+        console.error('Error getting pillar slots grid:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi lấy slot grid',
+            error: error.message
+        });
+    }
+};
+
 // Tìm slot trống hoặc có pin để swap
 const getAvailableSlots = async (req, res) => {
     try {
         const { stationId, pillarId, needEmpty } = req.query;
 
+        // ✅ Query theo Slot Status (không phải Battery Status)
         const query = { status: { $in: ['empty', 'occupied'] } };
 
         if (stationId) query.station = stationId;
@@ -136,11 +335,11 @@ const getAvailableSlots = async (req, res) => {
         // Nếu cần slot trống (để bỏ pin cũ vào)
         if (needEmpty === 'true') {
             query.battery = null;
-            query.status = 'empty';
+            query.status = 'empty'; // ✅ Slot Status = empty
         }
 
         const slots = await BatterySlot.find(query)
-            .populate('battery', 'serial model soh status')
+            .populate('battery', 'serial model soh status') // ✅ Populate để lấy Battery Status
             .populate('pillar', 'pillarCode pillarName')
             .populate('station', 'stationName address')
             .sort({ 'pillar.pillarNumber': 1, slotNumber: 1 })
@@ -160,86 +359,149 @@ const getAvailableSlots = async (req, res) => {
 // Bắt đầu quy trình đổi pin
 const initiateSwap = async (req, res) => {
     try {
-        const { userId, vehicleId, stationId, bookingId } = req.body;
+        const { vehicleId, bookingId } = req.body;
 
-        // Validate booking nếu có
-        let booking = null;
-        if (bookingId) {
-            booking = await Booking.findById(bookingId);
-            if (!booking || booking.status !== 'ready') {
-                return res.status(400).json({ message: 'Booking không hợp lệ hoặc chưa sẵn sàng' });
-            }
+        // ✅ Lấy userId từ middleware authenticate
+        const userId = req.user.id;
+
+        // ✅ Validate booking (BẮT BUỘC vì booking đã có pillar và battery)
+        if (!bookingId) {
+            return res.status(400).json({
+                message: 'bookingId là bắt buộc để thực hiện swap'
+            });
         }
 
-        // Tìm slot trống để bỏ pin cũ vào (luôn có ít nhất 1 slot trống)
+        const booking = await Booking.findById(bookingId)
+            .populate('battery', 'serial model soh status currentSlot currentPillar')
+            .populate('pillar', 'pillarCode pillarName pillarNumber')
+            .populate('station', 'stationName address');
+
+        if (!booking) {
+            return res.status(404).json({
+                message: 'Không tìm thấy booking'
+            });
+        }
+        console.log("user trong booking", booking.user);
+        console.log('userId', userId);
+
+        // ✅ Validate booking thuộc về user đang request
+        // Convert CẢ HAI về string để so sánh (vì cả 2 đều là ObjectId)
+        if (booking.user.toString() !== userId.toString()) {
+            return res.status(403).json({
+                message: 'Bạn không có quyền thực hiện swap cho booking này'
+            });
+        }
+
+
+        if (!['booked', 'arrived'].includes(booking.status)) {
+            return res.status(400).json({
+                message: `Booking không hợp lệ. Status hiện tại: ${booking.status}. Cần 'booked' hoặc 'arrived'.`
+            });
+        }
+
+        // ✅ Validate booking phải có pillar và battery
+        if (!booking.pillar) {
+            return res.status(400).json({
+                message: 'Booking không có thông tin pillar. Vui lòng tạo booking mới với pillarId.'
+            });
+        }
+
+        if (!booking.battery) {
+            return res.status(400).json({
+                message: 'Booking không có thông tin battery. Vui lòng tạo booking mới với batteryId.'
+            });
+        }
+
+        // ✅ Validate battery đã đặt vẫn còn hợp lệ
+        const bookedBattery = booking.battery;
+        if (!['is-booking', 'full', 'idle'].includes(bookedBattery.status)) {
+            return res.status(400).json({
+                message: `Pin đã đặt không còn khả dụng. Status: ${bookedBattery.status}. Vui lòng hủy và tạo booking mới.`
+            });
+        }
+
+        // ✅ Validate battery vẫn nằm trong pillar đã đặt
+        if (bookedBattery.currentPillar.toString() !== booking.pillar._id.toString()) {
+            return res.status(400).json({
+                message: 'Pin đã được di chuyển sang pillar khác. Vui lòng tạo booking mới.'
+            });
+        }
+
+        // ✅ Lấy thông tin slot của battery đã đặt
+        const bookedBatterySlot = await BatterySlot.findById(bookedBattery.currentSlot);
+        if (!bookedBatterySlot) {
+            return res.status(400).json({
+                message: 'Không tìm thấy slot của pin đã đặt. Vui lòng liên hệ nhân viên.'
+            });
+        }
+
+
         const emptySlot = await BatterySlot.findOne({
-            station: stationId,
+            pillar: booking.pillar._id,
             status: 'empty',
             battery: null
         }).populate('pillar');
 
         if (!emptySlot) {
             return res.status(400).json({
-                message: 'Không có slot trống. Vui lòng liên hệ nhân viên trạm.'
+                message: `Không có slot trống trong ${booking.pillar.pillarName}. Vui lòng liên hệ nhân viên trạm.`
             });
         }
 
-        // Tìm pin có điện cao nhất để đổi
-        const availableBattery = await Battery.findOne({
-            station: stationId,
-            status: { $in: ['full', 'idle'] },
-            currentSlot: { $ne: null }
-        })
-            .sort({ soh: -1 })
-            .populate('currentSlot');
-
-        if (!availableBattery) {
-            return res.status(400).json({
-                message: 'Không có pin sẵn sàng. Vui lòng chờ hoặc chọn trạm khác.'
-            });
-        }
-
-        // Tạo bản ghi swap history
+        // ✅ Tạo bản ghi swap history (dùng userId từ req.user và stationId từ booking)
         const swapHistory = new BatterySwapHistory({
             user: userId,
             vehicle: vehicleId,
-            station: stationId,
-            pillar: emptySlot.pillar._id,
+            station: booking.station._id, // ✅ Lấy từ booking thay vì req.body
+            pillar: booking.pillar._id,
             slot: emptySlot._id,
             booking: bookingId,
             status: 'initiated',
             newBattery: {
-                battery: availableBattery._id,
-                soh: availableBattery.soh,
-                chargeLevel: 100, // Giả định pin đầy
-                status: availableBattery.status
+                battery: bookedBattery._id,
+                soh: bookedBattery.soh,
+                chargeLevel: 100,
+                status: bookedBattery.status
             }
         });
 
         await swapHistory.save();
 
-        // Đặt chỗ slot
-        await emptySlot.reserve(bookingId, userId, 15); // 15 phút
+        // ✅ Reserve slot trống (15 phút)
+        await emptySlot.reserve(bookingId, userId, 15);
 
         res.json({
             message: 'Khởi tạo giao dịch đổi pin thành công',
             swapId: swapHistory.swapId,
             instructions: {
-                step1: `Đến trụ ${emptySlot.pillar.pillarName}`,
-                step2: `Bỏ pin cũ vào slot ${emptySlot.slotNumber}`,
-                step3: `Lấy pin mới từ slot ${availableBattery.currentSlot.slotNumber}`,
+                step1: `Đến trụ ${booking.pillar.pillarName}`,
+                step2: `Bỏ pin cũ vào slot trống số ${emptySlot.slotNumber}`,
+                step3: `Lấy pin đã đặt (${bookedBattery.serial}) từ slot số ${bookedBatterySlot.slotNumber}`,
                 step4: 'Xác nhận hoàn thành trên app'
+            },
+            booking: {
+                bookingId: booking.bookingId,
+                status: booking.status,
+                scheduledTime: booking.scheduledTime
+            },
+            pillar: {
+                _id: booking.pillar._id,
+                pillarCode: booking.pillar.pillarCode,
+                pillarName: booking.pillar.pillarName,
+                pillarNumber: booking.pillar.pillarNumber
             },
             emptySlot: {
                 _id: emptySlot._id,
-                slotNumber: emptySlot.slotNumber,
-                pillarName: emptySlot.pillar.pillarName
+                slotCode: emptySlot.slotCode,
+                slotNumber: emptySlot.slotNumber
             },
-            newBattery: {
-                _id: availableBattery._id,
-                serial: availableBattery.serial,
-                slotNumber: availableBattery.currentSlot.slotNumber,
-                soh: availableBattery.soh
+            bookedBattery: {
+                _id: bookedBattery._id,
+                serial: bookedBattery.serial,
+                model: bookedBattery.model,
+                soh: bookedBattery.soh,
+                slotNumber: bookedBatterySlot.slotNumber,
+                slotCode: bookedBatterySlot.slotCode
             }
         });
     } catch (error) {
@@ -437,6 +699,19 @@ const assignBatteryToSlot = async (req, res) => {
             return res.status(404).json({ message: 'Không tìm thấy pin' });
         }
 
+        // ✅ Kiểm tra Battery Status - Không được gán pin đang lỗi hoặc đang sử dụng
+        if (battery.status === 'faulty') {
+            return res.status(400).json({
+                message: 'Pin bị lỗi (faulty). Không thể gán vào slot. Vui lòng sửa chữa trước.'
+            });
+        }
+
+        if (battery.status === 'in-use') {
+            return res.status(400).json({
+                message: 'Pin đang được sử dụng (in-use). Không thể gán vào slot.'
+            });
+        }
+
         // Kiểm tra battery đã ở trong slot khác chưa
         if (battery.currentSlot) {
             return res.status(400).json({
@@ -474,10 +749,10 @@ const assignBatteryToSlot = async (req, res) => {
             });
         }
 
-        // Kiểm tra slot có đang reserved không
-        if (slot.status === 'reserved') {
+        // Kiểm tra Slot Status - Chỉ cho phép gán vào slot 'empty'
+        if (slot.status !== 'empty') {
             return res.status(400).json({
-                message: 'Slot đang được đặt trước. Vui lòng chọn slot khác.'
+                message: `Slot hiện đang ${slot.status}. Chỉ có thể gán pin vào slot trống (empty).`
             });
         }
 
@@ -562,10 +837,10 @@ const removeBatteryFromSlot = async (req, res) => {
             });
         }
 
-        // Kiểm tra slot có đang reserved không
-        if (slot.status === 'reserved') {
+        // ✅ Kiểm tra Slot Status - Chỉ cho phép lấy pin từ slot 'occupied'
+        if (slot.status !== 'occupied') {
             return res.status(400).json({
-                message: 'Slot đang được đặt trước trong giao dịch đổi pin. Không thể lấy pin ra.'
+                message: `Slot hiện đang ${slot.status}. Chỉ có thể lấy pin từ slot đang có pin (occupied).`
             });
         }
 
@@ -618,6 +893,8 @@ module.exports = {
     createPillar,
     getPillarsByStation,
     getPillarSlots,
+    getPillarSlotsGrid,
+    getPillarDetailById,
     getAvailableSlots,
     initiateSwap,
     insertOldBattery,

@@ -4,6 +4,8 @@ const router = express.Router();
 const {
     createPillar,
     getPillarsByStation,
+    getPillarDetailById,
+    getPillarSlotsGrid,
     initiateSwap,
     getAvailableSlots,
     insertOldBattery,
@@ -169,6 +171,246 @@ router.get('/pillars/station/:stationId', getPillarsByStation);
 
 /**
  * @swagger
+ * /api/battery-swap/pillars/{pillarId}:
+ *   get:
+ *     summary: Get detailed information of a pillar by ID
+ *     description: Get full details of a pillar including station info, all slots with batteries, reservations, and statistics
+ *     tags: [BatteryPillar]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: pillarId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Pillar ObjectId
+ *     responses:
+ *       200:
+ *         description: Pillar detail retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Lấy chi tiết trụ pin thành công
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     pillar:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         pillarCode:
+ *                           type: string
+ *                           example: ABC123-P1
+ *                         pillarName:
+ *                           type: string
+ *                           example: Pillar 1
+ *                         pillarNumber:
+ *                           type: number
+ *                           example: 1
+ *                         status:
+ *                           type: string
+ *                           enum: [active, inactive, maintenance, error]
+ *                         station:
+ *                           type: object
+ *                           properties:
+ *                             _id:
+ *                               type: string
+ *                             stationName:
+ *                               type: string
+ *                             address:
+ *                               type: string
+ *                             city:
+ *                               type: string
+ *                         slotStats:
+ *                           type: object
+ *                           properties:
+ *                             total:
+ *                               type: number
+ *                             empty:
+ *                               type: number
+ *                             occupied:
+ *                               type: number
+ *                             reserved:
+ *                               type: number
+ *                     statistics:
+ *                       type: object
+ *                       properties:
+ *                         totalSlots:
+ *                           type: number
+ *                         emptySlots:
+ *                           type: number
+ *                         occupiedSlots:
+ *                           type: number
+ *                         reservedSlots:
+ *                           type: number
+ *                         lockedSlots:
+ *                           type: number
+ *                         maintenanceSlots:
+ *                           type: number
+ *                         errorSlots:
+ *                           type: number
+ *                         availableBatteries:
+ *                           type: number
+ *                     slots:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           slotNumber:
+ *                             type: number
+ *                           slotCode:
+ *                             type: string
+ *                           status:
+ *                             type: string
+ *                           battery:
+ *                             type: object
+ *                             nullable: true
+ *                           reservation:
+ *                             type: object
+ *                             nullable: true
+ *                     batteries:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           slotNumber:
+ *                             type: number
+ *                           slotCode:
+ *                             type: string
+ *                           battery:
+ *                             type: object
+ *                           slotStatus:
+ *                             type: string
+ *       404:
+ *         description: Pillar not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/pillars/:pillarId', getPillarDetailById);
+
+/**
+ * @swagger
+ * /api/battery-swap/pillars/{pillarId}/grid:
+ *   get:
+ *     summary: Get pillar slots in 2D grid layout for UI display
+ *     description: Returns slots organized in a 2D array (rows x columns) for easy UI rendering. Default 2 rows x 5 columns.
+ *     tags: [BatterySlot]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: pillarId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Pillar ObjectId
+ *       - in: query
+ *         name: rows
+ *         schema:
+ *           type: integer
+ *           default: 2
+ *         description: Number of rows in grid
+ *       - in: query
+ *         name: columns
+ *         schema:
+ *           type: integer
+ *           default: 5
+ *         description: Number of columns in grid
+ *     responses:
+ *       200:
+ *         description: Slots grid retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Lấy slot grid thành công
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     pillar:
+ *                       type: object
+ *                       properties:
+ *                         _id:
+ *                           type: string
+ *                         pillarCode:
+ *                           type: string
+ *                         pillarName:
+ *                           type: string
+ *                     gridLayout:
+ *                       type: object
+ *                       properties:
+ *                         rows:
+ *                           type: integer
+ *                           example: 2
+ *                         columns:
+ *                           type: integer
+ *                           example: 5
+ *                         totalSlots:
+ *                           type: integer
+ *                           example: 10
+ *                     grid:
+ *                       type: array
+ *                       description: 2D array [row][column] of slots
+ *                       items:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           nullable: true
+ *                           properties:
+ *                             slotNumber:
+ *                               type: integer
+ *                             slotCode:
+ *                               type: string
+ *                             status:
+ *                               type: string
+ *                               enum: [empty, occupied, reserved, locked, maintenance, error]
+ *                             position:
+ *                               type: object
+ *                               properties:
+ *                                 row:
+ *                                   type: integer
+ *                                 column:
+ *                                   type: integer
+ *                             battery:
+ *                               type: object
+ *                               nullable: true
+ *                             reservation:
+ *                               type: object
+ *                               nullable: true
+ *       404:
+ *         description: Pillar not found
+ *       500:
+ *         description: Server error
+ *     x-codeSamples:
+ *       - lang: 'JavaScript'
+ *         source: |
+ *           // Example response:
+ *           {
+ *             "grid": [
+ *               [ slot1, slot2, slot3, slot4, slot5 ],  // Row 1
+ *               [ slot6, slot7, slot8, slot9, slot10 ]  // Row 2
+ *             ]
+ *           }
+ */
+router.get('/pillars/:pillarId/grid', getPillarSlotsGrid);
+
+/**
+ * @swagger
  * /api/battery-swap/pillars/{pillarId}/slots:
  *   get:
  *     summary: get status of slots in a pillar
@@ -252,11 +494,35 @@ router.get('/pillars/:pillarId/slots', getPillarSlots);
  *         description: List of available slots
  *         content:
  *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 count:
+ *                   type: number
+ *                 slots:
+ *                   type: array
+ *       500:
+ *         description: Server error
+ */
+router.get('/slots/available', getAvailableSlots);
+
+// ==================== SWAP ROUTES ====================
+
 /**
  * @swagger
  * /api/battery-swap/swap/initiate:
  *   post:
- *     summary: start battery swap process
+ *     summary: Start battery swap process (requires booking)
+ *     description: |
+ *       Khởi tạo quy trình đổi pin dựa trên booking đã tạo. API sẽ:
+ *       - Lấy userId từ token (req.user) - không cần gửi trong body
+ *       - Validate booking và battery đã đặt vẫn hợp lệ
+ *       - Tìm slot trống trong pillar đã đặt để bỏ pin cũ
+ *       - Tạo SwapHistory với status 'initiated'
+ *       - Reserve slot trống trong 15 phút
+ *       - Trả về hướng dẫn chi tiết cho user
  *     tags: [BatterySwap]
  *     security:
  *       - bearerAuth: []
@@ -267,21 +533,20 @@ router.get('/pillars/:pillarId/slots', getPillarSlots);
  *           schema:
  *             type: object
  *             required:
- *               - userId
  *               - vehicleId
- *               - stationId
+ *               - bookingId
  *             properties:
- *               userId:
- *                 type: string
  *               vehicleId:
  *                 type: string
- *               stationId:
- *                 type: string
+ *                 description: Vehicle ObjectId
+ *                 example: 673b1234567890abcdef0002
  *               bookingId:
  *                 type: string
+ *                 description: Booking ObjectId (REQUIRED - booking must have pillar and battery)
+ *                 example: 673b1234567890abcdef0004
  *     responses:
  *       200:
- *         description: Swap initiated successfully with instructions
+ *         description: Swap initiated successfully with step-by-step instructions
  *         content:
  *           application/json:
  *             schema:
@@ -292,77 +557,81 @@ router.get('/pillars/:pillarId/slots', getPillarSlots);
  *                   example: Khởi tạo giao dịch đổi pin thành công
  *                 swapId:
  *                   type: string
- *                   example: SWAP-1730880000000-ABC123XYZ
+ *                   example: SWAP-1730880000000-ABC123
  *                 instructions:
  *                   type: object
  *                   properties:
  *                     step1:
  *                       type: string
+ *                       example: Đến trụ Pillar A
  *                     step2:
  *                       type: string
+ *                       example: Bỏ pin cũ vào slot trống số 5
  *                     step3:
  *                       type: string
+ *                       example: Lấy pin đã đặt (BAT-001) từ slot số 2
  *                     step4:
  *                       type: string
+ *                       example: Xác nhận hoàn thành trên app
+ *                 booking:
+ *                   type: object
+ *                   properties:
+ *                     bookingId:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                     scheduledTime:
+ *                       type: string
+ *                       format: date-time
+ *                 pillar:
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                     pillarCode:
+ *                       type: string
+ *                     pillarName:
+ *                       type: string
+ *                     pillarNumber:
+ *                       type: number
  *                 emptySlot:
  *                   type: object
  *                   properties:
  *                     _id:
  *                       type: string
+ *                     slotCode:
+ *                       type: string
  *                     slotNumber:
  *                       type: number
- *                     pillarName:
- *                       type: string
- *                 newBattery:
+ *                 bookedBattery:
  *                   type: object
  *                   properties:
  *                     _id:
  *                       type: string
  *                     serial:
  *                       type: string
- *                     slotNumber:
- *                       type: number
- *                     charge:
- *                       type: number
+ *                     model:
+ *                       type: string
  *                     soh:
  *                       type: number
+ *                     slotNumber:
+ *                       type: number
+ *                     slotCode:
+ *                       type: string
  *       400:
- *         description: No empty slot or no battery available
+ *         description: Bad request - Missing bookingId, invalid booking status, battery not available, or no empty slot
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: bookingId là bắt buộc để thực hiện swap
+ *       404:
+ *         description: Booking or battery slot not found
  *       500:
  *         description: Server error
- */
-router.post('/swap/initiate', initiateSwap);
-router.get('/slots/available', getAvailableSlots);
-
-// ==================== SWAP ROUTES ====================
-
-/**
- * @swagger
- * /api/battery-swap/swap/initiate:
- *   post:
- *     summary: start battery swap process
- *     tags: [BatterySwap]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - userId
- *               - vehicleId
- *               - stationId
- *             properties:
- *               userId:
- *                 type: string
- *               vehicleId:
- *                 type: string
- *               stationId:
- *                 type: string
- *               bookingId:
- *                 type: string
  */
 router.post('/swap/initiate', initiateSwap);
 
