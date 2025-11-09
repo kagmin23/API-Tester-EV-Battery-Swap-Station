@@ -98,16 +98,6 @@ const batterySwapHistorySchema = new mongoose.Schema({
         index: true
     },
 
-    // Chi phí (nếu không dùng subscription)
-    cost: {
-        amount: { type: Number, min: 0, default: 0 },
-        currency: { type: String, default: 'VND' },
-        paymentMethod: { type: String, enum: ['cash', 'card', 'ewallet', 'subscription'], default: 'subscription' }
-    },
-
-
-
-
     // Ghi chú
     notes: { type: String, trim: true }
 
@@ -122,11 +112,6 @@ batterySwapHistorySchema.index({ status: 1, swapTime: -1 });
 batterySwapHistorySchema.methods.complete = async function () {
     this.status = 'completed';
     this.completedAt = new Date();
-
-    if (this.swapTime) {
-        this.metadata.swapDuration = Math.floor((this.completedAt - this.swapTime) / 1000);
-    }
-
     await this.save();
     return this;
 };
@@ -158,19 +143,13 @@ batterySwapHistorySchema.statics.getStationStats = async function (stationId, st
         {
             $group: {
                 _id: null,
-                totalSwaps: { $sum: 1 },
-                totalRevenue: { $sum: '$cost.amount' },
-                avgSwapDuration: { $avg: '$metadata.swapDuration' },
-                avgRating: { $avg: '$metadata.rating' }
+                totalSwaps: { $sum: 1 }
             }
         }
     ]);
 
     return stats[0] || {
-        totalSwaps: 0,
-        totalRevenue: 0,
-        avgSwapDuration: 0,
-        avgRating: 0
+        totalSwaps: 0
     };
 };
 
@@ -193,7 +172,6 @@ batterySwapHistorySchema.statics.getUserStats = async function (userId, startDat
             $group: {
                 _id: null,
                 totalSwaps: { $sum: 1 },
-                totalCost: { $sum: '$cost.amount' },
                 favoriteStation: { $first: '$station' }
             }
         }
@@ -201,7 +179,6 @@ batterySwapHistorySchema.statics.getUserStats = async function (userId, startDat
 
     return stats[0] || {
         totalSwaps: 0,
-        totalCost: 0,
         favoriteStation: null
     };
 };

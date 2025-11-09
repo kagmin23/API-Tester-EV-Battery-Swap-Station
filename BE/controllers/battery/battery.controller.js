@@ -8,14 +8,14 @@ exports.createBattery = async (req, res) => {
   try {
     const schema = z.object({
       serial: z.string().min(1),
-      model: z.string().optional().require(),
+      model: z.string().optional(),
       soh: z.number().min(0).max(100).optional(),
       status: z.enum(['charging', 'full', 'faulty', 'in-use', 'idle', 'is-booking']).optional(),
-      stationId: z.string().require(),
+      stationId: z.string(),
       manufacturer: z.string().optional(),
       capacity_kWh: z.number().min(0).optional(),
       voltage: z.number().min(0).optional(),
-      price: z.number().min(0).require(),
+      price: z.number().min(0).optional(),
     });
 
     const payload = schema.parse(req.body);

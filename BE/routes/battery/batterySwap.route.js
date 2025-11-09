@@ -825,8 +825,6 @@ router.post('/swap/complete', completeSwap);
  *                       completedAt:
  *                         type: string
  *                         format: date-time
- *                       metadata:
- *                         type: object
  *                 pagination:
  *                   type: object
  *                   properties:

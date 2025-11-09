@@ -209,6 +209,64 @@ connectDB().then(() => {
   } catch (err) {
     console.error('Background job for subscription auto-restore failed to start:', err.message);
   }
+
+  // Background job: Auto-expire slot reservations sau 15 phút
+  try {
+    const BatterySlot = require('./models/battery/batterySlot.model');
+    const BatteryPillar = require('./models/battery/batteryPillar.model');
+
+    const clearExpiredReservations = async () => {
+      const now = new Date();
+
+      // Tìm tất cả slots có reservation đã hết hạn
+      const expiredSlots = await BatterySlot.find({
+        status: 'reserved',
+        'reservation.expiresAt': { $lte: now }
+      }).populate('pillar');
+
+      if (expiredSlots.length > 0) {
+        console.log(`Found ${expiredSlots.length} expired slot reservation(s)`);
+
+        for (const slot of expiredSlots) {
+          try {
+            // Restore slot status
+            slot.status = slot.battery ? 'occupied' : 'empty';
+            slot.reservation = undefined;
+            await slot.save();
+
+            console.log(`✅ Expired reservation cleared: Slot ${slot.slotCode} → ${slot.status}`);
+
+            // Cập nhật pillar stats
+            if (slot.pillar) {
+              const pillar = await BatteryPillar.findById(slot.pillar._id || slot.pillar);
+              if (pillar) {
+                await pillar.updateSlotStats();
+              }
+            }
+          } catch (err) {
+            console.error(`Failed to clear reservation for slot ${slot.slotCode}:`, err.message);
+          }
+        }
+      }
+    };
+
+    // Chạy mỗi 5 phút (hoặc 1 phút nếu muốn nhanh hơn)
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    setInterval(() => {
+      clearExpiredReservations().catch(err =>
+        console.error('Error in clear expired reservations job:', err)
+      );
+    }, FIVE_MINUTES);
+
+    // Chạy 1 lần khi startup
+    clearExpiredReservations().catch(err =>
+      console.error('Error running clear expired reservations at startup:', err)
+    );
+
+    console.log('✅ Background job started: Clear expired slot reservations (every 5 minutes)');
+  } catch (err) {
+    console.error('Background job for slot reservations failed to start:', err.message);
+  }
 }).catch(err => {
   console.error('Database connection failed:', err.message);
   process.exit(1);

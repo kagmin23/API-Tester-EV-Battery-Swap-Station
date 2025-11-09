@@ -1,31 +1,31 @@
-const BatteryPillar = require('../../models/battery/batteryPillar.model');
+﻿const BatteryPillar = require('../../models/battery/batteryPillar.model');
 const BatterySlot = require('../../models/battery/batterySlot.model');
 const Battery = require('../../models/battery/battery.model');
 const BatterySwapHistory = require('../../models/battery/batterySwapHistory.model');
 const Station = require('../../models/station/station.model');
 const Booking = require('../../models/booking/booking.model');
 
-// Tạo trụ pin mới cho station
+// Create new battery pillar for station
 const createPillar = async (req, res) => {
     try {
         const { stationId, pillarName, pillarNumber, totalSlots } = req.body;
 
-        // Kiểm tra station có tồn tại không
+        // Check if station exists
         const station = await Station.findById(stationId);
         if (!station) {
-            return res.status(404).json({ message: 'Không tìm thấy trạm' });
+            return res.status(404).json({ message: 'Station not found' });
         }
 
-        // Kiểm tra pillarNumber đã tồn tại chưa
+        // Check if pillar number already exists
         const existingPillar = await BatteryPillar.findOne({
             station: stationId,
             pillarNumber
         });
         if (existingPillar) {
-            return res.status(400).json({ message: 'Pillar number is already exists' });
+            return res.status(400).json({ message: 'Pillar number already exists' });
         }
 
-        // Tạo pillar mới
+        // Create new pillar
         const pillar = new BatteryPillar({
             station: stationId,
             pillarName,
@@ -35,14 +35,14 @@ const createPillar = async (req, res) => {
 
         await pillar.save();
 
-        // Khởi tạo các slot cho trụ
+        // Initialize slots for the pillar
         await pillar.initializeSlots();
 
-        // Cập nhật thông tin station
+        // Update station info
         await station.updatePillarInfo();
 
         res.status(201).json({
-            message: 'create pillar successfully',
+            message: 'Pillar created successfully',
             pillar
         });
     } catch (error) {
@@ -51,7 +51,7 @@ const createPillar = async (req, res) => {
     }
 };
 
-// Lấy danh sách trụ pin của station
+// Get list of battery pillars by station
 const getPillarsByStation = async (req, res) => {
     try {
         const { stationId } = req.params;
@@ -66,7 +66,7 @@ const getPillarsByStation = async (req, res) => {
             .populate('station', 'stationName address')
             .sort({ pillarNumber: 1 });
 
-        // Lấy thông tin slots cho mỗi pillar
+        // Get slot information for each pillar
         const pillarsWithSlots = await Promise.all(
             pillars.map(async (pillar) => {
                 const slots = await BatterySlot.find({ pillar: pillar._id })
@@ -81,23 +81,23 @@ const getPillarsByStation = async (req, res) => {
         );
 
         res.json({
-            message: 'Lấy danh sách trụ pin thành công',
+            message: 'Pillars retrieved successfully',
             pillars: pillarsWithSlots
         });
     } catch (error) {
         console.error('Error getting pillars:', error);
-        res.status(500).json({ message: 'Lỗi lấy danh sách trụ pin', error: error.message });
+        res.status(500).json({ message: 'Error retrieving pillars', error: error.message });
     }
 };
 
-// Lấy trạng thái các slot của trụ pin
+// Get slot status of battery pillar
 const getPillarSlots = async (req, res) => {
     try {
         const { pillarId } = req.params;
 
         const pillar = await BatteryPillar.findById(pillarId);
         if (!pillar) {
-            return res.status(404).json({ message: 'Không tìm thấy trụ pin' });
+            return res.status(404).json({ message: 'Pillar not found' });
         }
 
         const slots = await BatterySlot.find({ pillar: pillarId })
@@ -107,7 +107,7 @@ const getPillarSlots = async (req, res) => {
             .sort({ slotNumber: 1 });
 
         res.json({
-            message: 'Lấy trạng thái slot thành công',
+            message: 'Slot status retrieved successfully',
             pillar: {
                 _id: pillar._id,
                 pillarCode: pillar.pillarCode,
@@ -119,11 +119,11 @@ const getPillarSlots = async (req, res) => {
         });
     } catch (error) {
         console.error('Error getting pillar slots:', error);
-        res.status(500).json({ message: 'Lỗi lấy trạng thái slot', error: error.message });
+        res.status(500).json({ message: 'Error retrieving slot status', error: error.message });
     }
 };
 
-// Lấy chi tiết đầy đủ của 1 trụ pin theo ID
+// Get full details of a pillar by ID
 const getPillarDetailById = async (req, res) => {
     try {
         const { pillarId } = req.params;
@@ -135,7 +135,7 @@ const getPillarDetailById = async (req, res) => {
         if (!pillar) {
             return res.status(404).json({
                 success: false,
-                message: 'Không tìm thấy trụ pin'
+                message: 'Pillar not found'
             });
         }
 
@@ -167,7 +167,7 @@ const getPillarDetailById = async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Lấy chi tiết trụ pin thành công',
+            message: 'Pillar details retrieved successfully',
             data: {
                 pillar: {
                     _id: pillar._id,
@@ -198,7 +198,7 @@ const getPillarDetailById = async (req, res) => {
         console.error('Error getting pillar detail:', error);
         res.status(500).json({
             success: false,
-            message: 'Lỗi lấy chi tiết trụ pin',
+            message: 'Error retrieving pillar details',
             error: error.message
         });
     }
@@ -217,11 +217,11 @@ const getPillarSlotsGrid = async (req, res) => {
         if (!pillar) {
             return res.status(404).json({
                 success: false,
-                message: 'Không tìm thấy trụ pin'
+                message: 'Pillar not found'
             });
         }
 
-        // Lấy tất cả slots
+        // Get all slots
         const slots = await BatterySlot.find({ pillar: pillarId })
             .populate('battery', 'serial model soh status manufacturer capacity_kWh voltage price')
             .populate('reservation.user', 'fullName email')
@@ -291,7 +291,7 @@ const getPillarSlotsGrid = async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Lấy slot grid thành công',
+            message: 'Slot grid retrieved successfully',
             data: {
                 pillar: {
                     _id: pillar._id,
@@ -315,7 +315,7 @@ const getPillarSlotsGrid = async (req, res) => {
         console.error('Error getting pillar slots grid:', error);
         res.status(500).json({
             success: false,
-            message: 'Lỗi lấy slot grid',
+            message: 'Error retrieving slot grid',
             error: error.message
         });
     }
@@ -346,13 +346,13 @@ const getAvailableSlots = async (req, res) => {
             .limit(50);
 
         res.json({
-            message: 'Lấy danh sách slot khả dụng thành công',
+            message: 'Available slots retrieved successfully',
             count: slots.length,
             slots
         });
     } catch (error) {
         console.error('Error getting available slots:', error);
-        res.status(500).json({ message: 'Lỗi lấy danh sách slot', error: error.message });
+        res.status(500).json({ message: 'Error retrieving available slots', error: error.message });
     }
 };
 
@@ -367,7 +367,7 @@ const initiateSwap = async (req, res) => {
         // ✅ Validate booking (BẮT BUỘC vì booking đã có pillar và battery)
         if (!bookingId) {
             return res.status(400).json({
-                message: 'bookingId là bắt buộc để thực hiện swap'
+                message: 'bookingId is required to perform swap'
             });
         }
 
@@ -378,7 +378,7 @@ const initiateSwap = async (req, res) => {
 
         if (!booking) {
             return res.status(404).json({
-                message: 'Không tìm thấy booking'
+                message: 'Booking not found'
             });
         }
         console.log("user trong booking", booking.user);
@@ -388,27 +388,27 @@ const initiateSwap = async (req, res) => {
         // Convert CẢ HAI về string để so sánh (vì cả 2 đều là ObjectId)
         if (booking.user.toString() !== userId.toString()) {
             return res.status(403).json({
-                message: 'Bạn không có quyền thực hiện swap cho booking này'
+                message: 'You do not have permission to perform swap for this booking'
             });
         }
 
 
         if (!['booked', 'arrived'].includes(booking.status)) {
             return res.status(400).json({
-                message: `Booking không hợp lệ. Status hiện tại: ${booking.status}. Cần 'booked' hoặc 'arrived'.`
+                message: `Invalid booking. Status hiện tại: ${booking.status}. Cần 'booked' hoặc 'arrived'.`
             });
         }
 
         // ✅ Validate booking phải có pillar và battery
         if (!booking.pillar) {
             return res.status(400).json({
-                message: 'Booking không có thông tin pillar. Vui lòng tạo booking mới với pillarId.'
+                message: 'Booking không có thông tin pillar. Please tạo booking mới với pillarId.'
             });
         }
 
         if (!booking.battery) {
             return res.status(400).json({
-                message: 'Booking không có thông tin battery. Vui lòng tạo booking mới với batteryId.'
+                message: 'Booking không có thông tin battery. Please tạo booking mới với batteryId.'
             });
         }
 
@@ -416,14 +416,14 @@ const initiateSwap = async (req, res) => {
         const bookedBattery = booking.battery;
         if (!['is-booking', 'full', 'idle'].includes(bookedBattery.status)) {
             return res.status(400).json({
-                message: `Pin đã đặt không còn khả dụng. Status: ${bookedBattery.status}. Vui lòng hủy và tạo booking mới.`
+                message: `Pin đã đặt không còn khả dụng. Status: ${bookedBattery.status}. Please hủy và tạo booking mới.`
             });
         }
 
         // ✅ Validate battery vẫn nằm trong pillar đã đặt
         if (bookedBattery.currentPillar.toString() !== booking.pillar._id.toString()) {
             return res.status(400).json({
-                message: 'Pin đã được di chuyển sang pillar khác. Vui lòng tạo booking mới.'
+                message: 'Pin đã được di chuyển sang pillar khác. Please tạo booking mới.'
             });
         }
 
@@ -431,7 +431,7 @@ const initiateSwap = async (req, res) => {
         const bookedBatterySlot = await BatterySlot.findById(bookedBattery.currentSlot);
         if (!bookedBatterySlot) {
             return res.status(400).json({
-                message: 'Không tìm thấy slot của pin đã đặt. Vui lòng liên hệ nhân viên.'
+                message: 'Không tìm thấy slot của pin đã đặt. Please contact staff.'
             });
         }
 
@@ -444,7 +444,7 @@ const initiateSwap = async (req, res) => {
 
         if (!emptySlot) {
             return res.status(400).json({
-                message: `Không có slot trống trong ${booking.pillar.pillarName}. Vui lòng liên hệ nhân viên trạm.`
+                message: `No empty slot in ${booking.pillar.pillarName}. Please contact station staff.`
             });
         }
 
@@ -467,17 +467,18 @@ const initiateSwap = async (req, res) => {
 
         await swapHistory.save();
 
-        // ✅ Reserve slot trống (15 phút)
+        // ✅ Reserve slot trống (15 phút) - Đảm bảo slot không bị user khác chiếm
+        // Nếu muốn GIỮ slot empty cho đến khi insertOldBattery, comment dòng này
         await emptySlot.reserve(bookingId, userId, 15);
 
         res.json({
-            message: 'Khởi tạo giao dịch đổi pin thành công',
+            message: 'Swap transaction initiated successfully',
             swapId: swapHistory.swapId,
             instructions: {
-                step1: `Đến trụ ${booking.pillar.pillarName}`,
-                step2: `Bỏ pin cũ vào slot trống số ${emptySlot.slotNumber}`,
-                step3: `Lấy pin đã đặt (${bookedBattery.serial}) từ slot số ${bookedBatterySlot.slotNumber}`,
-                step4: 'Xác nhận hoàn thành trên app'
+                step1: `Go to pillar ${booking.pillar.pillarName}`,
+                step2: `Insert old battery into empty slot number ${emptySlot.slotNumber}`,
+                step3: `Take booked battery (${bookedBattery.serial}) from slot number ${bookedBatterySlot.slotNumber}`,
+                step4: 'Confirm completion on app'
             },
             booking: {
                 bookingId: booking.bookingId,
@@ -506,14 +507,24 @@ const initiateSwap = async (req, res) => {
         });
     } catch (error) {
         console.error('Error initiating swap:', error);
-        res.status(500).json({ message: 'Lỗi khởi tạo giao dịch đổi pin', error: error.message });
+        res.status(500).json({ message: 'Error initiating swap transaction', error: error.message });
     }
 };
 
 // Người dùng bỏ pin cũ vào slot trống
 const insertOldBattery = async (req, res) => {
     try {
-        const { swapId, oldBatterySerial, slotId } = req.body;
+        const {
+            swapId,
+            slotId,
+            oldBatterySerial,
+            // ✅ Thông tin bổ sung cho oldBattery (nếu chưa tồn tại)
+            model,
+            manufacturer,
+            capacity_kWh,
+            voltage,
+            price
+        } = req.body;
 
         // Tìm giao dịch swap
         const swapHistory = await BatterySwapHistory.findOne({ swapId });
@@ -527,13 +538,33 @@ const insertOldBattery = async (req, res) => {
 
         // Tìm hoặc tạo battery record cho pin cũ
         let oldBattery = await Battery.findOne({ serial: oldBatterySerial });
+
         if (!oldBattery) {
-            // Tạo mới nếu pin chưa được đăng ký
+            // ✅ Validate đầy đủ thông tin khi tạo mới
+            if (!model) {
+                return res.status(400).json({
+                    message: 'Thiếu thông tin battery: model là bắt buộc khi tạo pin mới'
+                });
+            }
+            if (!price && price !== 0) {
+                return res.status(400).json({
+                    message: 'Thiếu thông tin battery: price là bắt buộc khi tạo pin mới'
+                });
+            }
+
+            // ✅ Tạo mới với đầy đủ thông tin
             oldBattery = new Battery({
                 serial: oldBatterySerial,
+                model,
+                manufacturer: manufacturer || 'Unknown',
+                capacity_kWh: capacity_kWh || 48, // Default 48kWh
+                voltage: voltage || 48, // Default 48V
+                price,
                 station: swapHistory.station,
                 status: 'idle',
-                soh: 80 // Mặc định, sẽ được kiểm tra sau
+                soh: 80, // Mặc định, sẽ được kiểm tra lại bởi staff
+                currentPillar: null, // Sẽ được cập nhật khi insertBattery
+                currentSlot: null
             });
             await oldBattery.save();
         }
@@ -558,7 +589,7 @@ const insertOldBattery = async (req, res) => {
         await swapHistory.save();
 
         res.json({
-            message: 'Đã nhận pin cũ. Vui lòng lấy pin mới.',
+            message: 'Đã nhận pin cũ. Please lấy pin mới.',
             swapId: swapHistory.swapId,
             oldBattery: {
                 serial: oldBattery.serial,
@@ -576,7 +607,7 @@ const insertOldBattery = async (req, res) => {
 const completeSwap = async (req, res) => {
     try {
         const { swapId } = req.body;
-
+        console.log(swapId)
         // Tìm giao dịch swap
         const swapHistory = await BatterySwapHistory.findOne({ swapId })
             .populate('newBattery.battery')
@@ -592,7 +623,7 @@ const completeSwap = async (req, res) => {
             return res.status(400).json({ message: 'Giao dịch chưa sẵn sàng để hoàn thành' });
         }
 
-        // Lấy pin mới ra khỏi slot
+        // Remove new battery from slot
         const newBatterySlot = await BatterySlot.findById(
             swapHistory.newBattery.battery.currentSlot
         );
@@ -601,19 +632,28 @@ const completeSwap = async (req, res) => {
             await newBatterySlot.removeBattery(swapHistory.user);
         }
 
-        // Cập nhật trạng thái pin cũ sang charging
+        // Update old battery status to idle (returned to station)
         await Battery.findByIdAndUpdate(swapHistory.oldBattery.battery._id, {
-            status: 'charging'
+            status: 'idle'
         });
 
-        // Cập nhật booking nếu có
+        // ✅ Update new battery status to in-use (taken by user)
+        await Battery.findByIdAndUpdate(swapHistory.newBattery.battery._id, {
+            status: 'in-use'
+        });
+
+        // ✅ Update SwapHistory to reflect actual battery statuses
+        swapHistory.oldBattery.status = 'idle';
+        swapHistory.newBattery.status = 'in-use';
+
+        // Update booking if exists
         if (swapHistory.booking) {
             await Booking.findByIdAndUpdate(swapHistory.booking, {
                 status: 'completed'
             });
         }
 
-        // Hoàn thành swap
+        // Complete swap (this will save swapHistory with updated statuses)
         await swapHistory.complete();
 
         // Cập nhật thống kê station
@@ -623,6 +663,11 @@ const completeSwap = async (req, res) => {
             await station.updatePillarInfo();
         }
 
+        // Tính swap duration (giây)
+        const swapDuration = swapHistory.swapTime && swapHistory.completedAt
+            ? Math.floor((swapHistory.completedAt - swapHistory.swapTime) / 1000)
+            : 0;
+
         res.json({
             message: 'Đổi pin thành công!',
             swapId: swapHistory.swapId,
@@ -630,7 +675,7 @@ const completeSwap = async (req, res) => {
                 oldBattery: swapHistory.oldBattery.battery.serial,
                 newBattery: swapHistory.newBattery.battery.serial,
                 newBatteryCharge: swapHistory.newBattery.chargeLevel,
-                swapDuration: swapHistory.metadata.swapDuration,
+                swapDuration,
                 completedAt: swapHistory.completedAt
             }
         });
@@ -640,7 +685,7 @@ const completeSwap = async (req, res) => {
     }
 };
 
-// Lấy lịch sử đổi pin
+// Get battery swap history
 const getSwapHistory = async (req, res) => {
     try {
         const { userId, stationId, startDate, endDate, page = 1, limit = 20 } = req.query;
@@ -702,7 +747,7 @@ const assignBatteryToSlot = async (req, res) => {
         // ✅ Kiểm tra Battery Status - Không được gán pin đang lỗi hoặc đang sử dụng
         if (battery.status === 'faulty') {
             return res.status(400).json({
-                message: 'Pin bị lỗi (faulty). Không thể gán vào slot. Vui lòng sửa chữa trước.'
+                message: 'Pin bị lỗi (faulty). Không thể gán vào slot. Please sửa chữa trước.'
             });
         }
 
@@ -715,7 +760,7 @@ const assignBatteryToSlot = async (req, res) => {
         // Kiểm tra battery đã ở trong slot khác chưa
         if (battery.currentSlot) {
             return res.status(400).json({
-                message: 'Pin đang ở trong slot khác. Vui lòng lấy pin ra trước.'
+                message: 'Pin đang ở trong slot khác. Please lấy pin ra trước.'
             });
         }
 
@@ -732,7 +777,7 @@ const assignBatteryToSlot = async (req, res) => {
         if (userRole === 'staff') {
             if (!userStation) {
                 return res.status(403).json({
-                    message: 'Staff chưa được phân công trạm. Vui lòng liên hệ admin.'
+                    message: 'Staff chưa được phân công trạm. Please liên hệ admin.'
                 });
             }
             if (slot.station._id.toString() !== userStation.toString()) {
@@ -745,7 +790,7 @@ const assignBatteryToSlot = async (req, res) => {
         // Kiểm tra slot đã có pin chưa
         if (slot.battery) {
             return res.status(400).json({
-                message: 'Slot đã có pin. Vui lòng chọn slot trống.'
+                message: 'Slot đã có pin. Please chọn slot trống.'
             });
         }
 
@@ -820,7 +865,7 @@ const removeBatteryFromSlot = async (req, res) => {
         if (userRole === 'staff') {
             if (!userStation) {
                 return res.status(403).json({
-                    message: 'Staff chưa được phân công trạm. Vui lòng liên hệ admin.'
+                    message: 'Staff chưa được phân công trạm. Please liên hệ admin.'
                 });
             }
             if (slot.station._id.toString() !== userStation.toString()) {
@@ -851,7 +896,7 @@ const removeBatteryFromSlot = async (req, res) => {
             status: slot.battery.status
         };
 
-        // Lấy pin ra khỏi slot
+        // Remove battery from slot
         await slot.removeBattery(staffId);
 
         // Cập nhật battery
@@ -903,3 +948,8 @@ module.exports = {
     assignBatteryToSlot,
     removeBatteryFromSlot
 };
+
+
+
+
+
