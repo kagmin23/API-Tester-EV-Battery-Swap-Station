@@ -23,6 +23,15 @@ const stationSchema = new mongoose.Schema({
   // Legacy field for backward compatibility
   availableBatteries: { type: Number, default: 0 },
 
+  // Thông tin về trụ pin
+  pillarInfo: {
+    totalPillars: { type: Number, default: 0 },
+    activePillars: { type: Number, default: 0 },
+    totalSlots: { type: Number, default: 0 },
+    occupiedSlots: { type: Number, default: 0 },
+    emptySlots: { type: Number, default: 0 }
+  },
+
   location: {
     type: {
       type: String,
@@ -93,6 +102,77 @@ stationSchema.methods.updateBatteryCounts = async function () {
   ]);
 
   this.sohAvg = sohData.length > 0 ? Math.round(sohData[0].avgSoh) : 100;
+
+  await this.save();
+  return this;
+};
+
+// Virtual để lấy danh sách pillars
+stationSchema.virtual('pillars', {
+  ref: 'BatteryPillar',
+  localField: '_id',
+  foreignField: 'station'
+});
+
+// Method to update pillar information
+stationSchema.methods.updatePillarInfo = async function () {
+  const BatteryPillar = require('../battery/batteryPillar.model');
+  const BatterySlot = require('../battery/batterySlot.model');
+
+  // Đếm số lượng trụ
+  const pillarStats = await BatteryPillar.aggregate([
+    { $match: { station: this._id } },
+    {
+      $group: {
+        _id: '$status',
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  let totalPillars = 0;
+  let activePillars = 0;
+
+  pillarStats.forEach(stat => {
+    totalPillars += stat.count;
+    if (stat._id === 'active') {
+      activePillars = stat.count;
+    }
+  });
+
+  // Đếm số lượng slot
+  const slotStats = await BatterySlot.aggregate([
+    { $match: { station: this._id } },
+    {
+      $group: {
+        _id: null,
+        totalSlots: { $sum: 1 },
+        occupiedSlots: {
+          $sum: {
+            $cond: [{ $ne: ['$battery', null] }, 1, 0]
+          }
+        }
+      }
+    }
+  ]);
+
+  if (slotStats.length > 0) {
+    this.pillarInfo = {
+      totalPillars,
+      activePillars,
+      totalSlots: slotStats[0].totalSlots,
+      occupiedSlots: slotStats[0].occupiedSlots,
+      emptySlots: slotStats[0].totalSlots - slotStats[0].occupiedSlots
+    };
+  } else {
+    this.pillarInfo = {
+      totalPillars,
+      activePillars,
+      totalSlots: 0,
+      occupiedSlots: 0,
+      emptySlots: 0
+    };
+  }
 
   await this.save();
   return this;

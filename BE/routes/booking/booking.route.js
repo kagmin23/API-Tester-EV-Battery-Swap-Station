@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../../middlewares/auth/auth.middleware');
-const { createBooking, listBookings, cancelBooking, getBookingDetail, completeBooking } = require('../../controllers/booking/booking.controller');
+const { createBooking, listBookings, cancelBooking, getBookingDetail, arrivedBooking } = require('../../controllers/booking/booking.controller');
 
 /**
  * @swagger
@@ -32,6 +32,9 @@ router.use(authenticate);
  *               station_id:
  *                 type: string
  *                 description: Target station ObjectId
+ *               pillar_id:
+ *                 type: string
+ *                 description: (Optional) Battery pillar ObjectId at the station
  *               vehicle_id:
  *                 type: string
  *                 description: Vehicle ObjectId that belongs to the user
@@ -115,7 +118,7 @@ router.put('/:id/cancel', cancelBooking);
  *       401:
  *         description: Unauthorized
  */
-router.put('/:id/complete', completeBooking);
+router.put('/:id/arrived', arrivedBooking);
 
 /**
  * @swagger
