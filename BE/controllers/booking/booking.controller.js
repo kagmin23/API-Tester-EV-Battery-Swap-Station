@@ -95,6 +95,15 @@ const createBooking = async (req, res) => {
           message: "Battery is not located in the specified pillar",
         });
       }
+
+      // ✅ Check if pillar has at least 1 empty slot for old battery insertion
+      await pillar.updateSlotStats(); // Update stats first
+      if (pillar.slotStats.empty < 1) {
+        return res.status(400).json({
+          success: false,
+          message: `No empty slot available in ${pillar.pillarName}. Cannot accept old battery. Please choose another pillar or contact staff.`,
+        });
+      }
     }
 
     // Check if battery is already booked for the same time
@@ -115,14 +124,14 @@ const createBooking = async (req, res) => {
     }
 
     // ✅ Kiểm tra user có subscription không
-    // Nếu có subscription active với remaining_swaps > 0 hoặc unlimited (null), 
+    // Nếu có subscription active/in-use với remaining_swaps > 0 hoặc unlimited (null), 
     // sẽ attach subscription vào booking và decrement remaining_swaps
     let attachedSubscription = null;
     try {
       const UserSubscription = require('../../models/subscription/userSubscription.model');
       const activeSub = await UserSubscription.findOne({
         user: req.user.id,
-        status: 'active',
+        status: { $in: ['active', 'in-use'] }, // ✅ Accept both active and in-use
         $or: [
           { remaining_swaps: { $gt: 0 } },
           { remaining_swaps: null }
@@ -134,7 +143,10 @@ const createBooking = async (req, res) => {
         if (activeSub.remaining_swaps !== null && activeSub.remaining_swaps !== undefined) {
           const updated = await UserSubscription.findOneAndUpdate(
             { _id: activeSub._id, remaining_swaps: { $gt: 0 } },
-            { $inc: { remaining_swaps: -1 } },
+            {
+              $inc: { remaining_swaps: -1 },
+              $set: { status: 'in-use' } // ✅ Change status to in-use when first used
+            },
             { new: true }
           );
           if (!updated) {
@@ -144,8 +156,13 @@ const createBooking = async (req, res) => {
             attachedSubscription = updated;
           }
         } else {
-          // Unlimited swaps
-          attachedSubscription = activeSub;
+          // Unlimited swaps - also set to in-use
+          const updated = await UserSubscription.findByIdAndUpdate(
+            activeSub._id,
+            { status: 'in-use' },
+            { new: true }
+          );
+          attachedSubscription = updated;
         }
       }
     } catch (errSubAttach) {

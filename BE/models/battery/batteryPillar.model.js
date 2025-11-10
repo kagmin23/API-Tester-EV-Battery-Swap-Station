@@ -89,6 +89,25 @@ batteryPillarSchema.virtual('slots', {
     foreignField: 'pillar'
 });
 
+// Virtual để check xem có slot available cho swap không
+// Đảm bảo luôn có ít nhất 1 slot empty hoặc có thể trống (để driver bỏ battery cũ vào)
+batteryPillarSchema.virtual('hasSwapSlotAvailable').get(function () {
+    // Available slots = total - (occupied + reserved that are not empty)
+    // Cần ít nhất 1 slot để bỏ battery cũ vào
+    const availableSlots = this.slotStats.empty;
+    return availableSlots >= 1;
+});
+
+// Virtual để tính số slot có thể booking được
+batteryPillarSchema.virtual('availableSlotsForBooking').get(function () {
+    // Để booking an toàn, cần:
+    // 1. Ít nhất 1 battery available (occupied slot)
+    // 2. Ít nhất 1 empty slot (cho old battery)
+    // Vậy nên occupied slots phải <= (total - 1)
+    const maxBookableSlots = Math.max(0, this.slotStats.occupied - 1);
+    return maxBookableSlots;
+});
+
 // Method để cập nhật thống kê slot
 batteryPillarSchema.methods.updateSlotStats = async function () {
     const BatterySlot = require('./batterySlot.model');
