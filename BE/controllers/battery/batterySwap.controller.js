@@ -73,9 +73,21 @@ const getPillarsByStation = async (req, res) => {
                     .populate('battery', 'serial model soh status price')
                     .sort({ slotNumber: 1 });
 
+                // ✅ Update stats and check availability
+                await pillar.updateSlotStats();
+
                 return {
                     ...pillar.toObject(),
-                    slots
+                    slots,
+                    // ✅ Add availability info for booking
+                    availability: {
+                        hasSwapSlotAvailable: pillar.slotStats.empty >= 1,
+                        emptySlots: pillar.slotStats.empty,
+                        canAcceptBooking: pillar.slotStats.empty >= 1 && pillar.slotStats.occupied > 0,
+                        message: pillar.slotStats.empty < 1
+                            ? 'No empty slot available. Cannot accept new bookings.'
+                            : `${pillar.slotStats.empty} empty slot(s) available for old battery insertion.`
+                    }
                 };
             })
         );
@@ -801,6 +813,19 @@ const assignBatteryToSlot = async (req, res) => {
             });
         }
 
+        // ✅ Check if pillar will still have at least 1 empty slot after assignment
+        const pillar = await BatteryPillar.findById(slot.pillar._id);
+        if (pillar) {
+            await pillar.updateSlotStats();
+
+            // Nếu chỉ còn 1 empty slot (slot hiện tại), không cho phép assign
+            if (pillar.slotStats.empty <= 1) {
+                return res.status(400).json({
+                    message: `Cannot assign battery. Pillar ${pillar.pillarName} must keep at least 1 empty slot for swap operations. Current empty slots: ${pillar.slotStats.empty}. Please remove a battery from another slot first.`
+                });
+            }
+        }
+
         // Gán pin vào slot
         await slot.insertBattery(batteryId, staffId);
 
@@ -810,11 +835,8 @@ const assignBatteryToSlot = async (req, res) => {
         battery.station = slot.station._id;
         await battery.save();
 
-        // Cập nhật stats của pillar
-        const pillar = await BatteryPillar.findById(slot.pillar._id);
-        if (pillar) {
-            await pillar.updateSlotStats();
-        }
+        // Cập nhật stats của pillar (update lại sau khi insert)
+        await pillar.updateSlotStats();
 
         // Cập nhật stats của station
         const station = await Station.findById(slot.station._id);
@@ -835,6 +857,11 @@ const assignBatteryToSlot = async (req, res) => {
                 slotCode: slot.slotCode,
                 pillarName: slot.pillar.pillarName,
                 stationName: slot.station.stationName
+            },
+            pillarStats: {
+                emptySlots: pillar.slotStats.empty,
+                occupiedSlots: pillar.slotStats.occupied,
+                message: `${pillar.slotStats.empty} empty slot(s) remaining in ${pillar.pillarName}`
             }
         });
     } catch (error) {

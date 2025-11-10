@@ -22,7 +22,7 @@ const createSupportRequest = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Support can only be created for bookings with status "completed"' });
     }
 
-    if (req.user && req.user.role !== 'admin' && req.user.role !== 'staff') {
+    if (req.user && req.user.role !== 'admin' && req.user.role !== 'staff' && req.user.role !== 'driver') {
       if (!booking.user || booking.user.toString() !== req.user.id) {
         return res.status(403).json({ success: false, message: 'Forbidden: booking does not belong to you' });
       }
@@ -37,7 +37,7 @@ const createSupportRequest = async (req, res) => {
     };
 
     const ticket = await SupportRequest.create(ticketData);
-  await ticket.populate({ path: 'booking', select: 'bookingId scheduledTime status', populate: { path: 'battery', select: 'serial model soh status manufacturer capacity_kWh voltage' } });
+    await ticket.populate({ path: 'booking', select: 'bookingId scheduledTime status', populate: { path: 'battery', select: 'serial model soh status manufacturer capacity_kWh voltage' } });
 
     return res.status(201).json({ success: true, data: ticket, message: 'Support request submitted' });
   } catch (err) {

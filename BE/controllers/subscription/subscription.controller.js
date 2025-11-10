@@ -64,7 +64,7 @@ const createSubscriptionPayment = async (req, res) => {
     const now = new Date();
     const existingNonExpired = await UserSubscription.findOne({
       user: req.user.id,
-      status: { $in: ['active', 'in-use'] },
+      status: { $in: ['in-use'] },
       $or: [
         { end_date: { $exists: false } },
         { end_date: null },
