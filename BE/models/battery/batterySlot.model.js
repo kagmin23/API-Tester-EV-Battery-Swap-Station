@@ -205,12 +205,10 @@ batterySlotSchema.methods.removeBattery = async function (userId = null) {
 
     await this.save();
 
-    // Cập nhật vị trí pin
     const Battery = require('./battery.model');
     await Battery.findByIdAndUpdate(batteryId, {
         currentSlot: null,
-        currentPillar: null,
-        status: 'in-use' // Pin được lấy ra nghĩa là đang sử dụng
+        currentPillar: null
     });
 
     // Cập nhật thống kê trụ
