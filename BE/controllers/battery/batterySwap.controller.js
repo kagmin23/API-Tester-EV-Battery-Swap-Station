@@ -890,19 +890,21 @@ const removeBatteryFromSlot = async (req, res) => {
         }
 
         const batteryInfo = {
+            id: slot.battery._id,
             serial: slot.battery.serial,
             model: slot.battery.model,
             soh: slot.battery.soh,
             status: slot.battery.status
         };
 
-        // Remove battery from slot
+        // Remove battery from slot (method tự động clear currentSlot/Pillar)
         await slot.removeBattery(staffId);
 
-        // Cập nhật battery
-        await Battery.findByIdAndUpdate(slot.battery._id, {
-            currentSlot: null,
-            currentPillar: null
+        // ✅ Fix: Set battery status (vì method removeBattery không set status)
+        // Staff có thể set status tùy theo tình huống (idle/maintenance/faulty)
+        // Mặc định: idle (sẵn sàng để charge hoặc assign lại)
+        await Battery.findByIdAndUpdate(batteryInfo.id, {
+            status: 'idle' // hoặc có thể cho phép staff chọn trong request body
         });
 
         // Cập nhật stats của pillar
