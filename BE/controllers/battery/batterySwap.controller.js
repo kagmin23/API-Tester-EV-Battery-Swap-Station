@@ -407,20 +407,20 @@ const initiateSwap = async (req, res) => {
 
         if (!['booked', 'arrived'].includes(booking.status)) {
             return res.status(400).json({
-                message: `Invalid booking. Status hiện tại: ${booking.status}. Cần 'booked' hoặc 'arrived'.`
+                message: `Invalid booking. Status now: ${booking.status}. need 'booked' or 'arrived'.`
             });
         }
 
         // ✅ Validate booking phải có pillar và battery
         if (!booking.pillar) {
             return res.status(400).json({
-                message: 'Booking không có thông tin pillar. Please tạo booking mới với pillarId.'
+                message: 'Booking dont have pillar. Please create new booking with pillarId.'
             });
         }
 
         if (!booking.battery) {
             return res.status(400).json({
-                message: 'Booking không có thông tin battery. Please tạo booking mới với batteryId.'
+                message: 'Booking dont have battery. Please create new booking with batteryId.'
             });
         }
 
@@ -428,14 +428,14 @@ const initiateSwap = async (req, res) => {
         const bookedBattery = booking.battery;
         if (!['is-booking', 'full', 'idle'].includes(bookedBattery.status)) {
             return res.status(400).json({
-                message: `Pin đã đặt không còn khả dụng. Status: ${bookedBattery.status}. Please hủy và tạo booking mới.`
+                message: `Booked battery is no longer available. Status: ${bookedBattery.status}. Please cancel and create a new booking.`
             });
         }
 
         // ✅ Validate battery vẫn nằm trong pillar đã đặt
         if (bookedBattery.currentPillar.toString() !== booking.pillar._id.toString()) {
             return res.status(400).json({
-                message: 'Pin đã được di chuyển sang pillar khác. Please tạo booking mới.'
+                message: 'Booked battery has been moved to a different pillar. Please create a new booking.'
             });
         }
 
@@ -443,7 +443,7 @@ const initiateSwap = async (req, res) => {
         const bookedBatterySlot = await BatterySlot.findById(bookedBattery.currentSlot);
         if (!bookedBatterySlot) {
             return res.status(400).json({
-                message: 'Không tìm thấy slot của pin đã đặt. Please contact staff.'
+                message: 'Slot of booked battery not found. Please contact staff.'
             });
         }
 
@@ -541,11 +541,11 @@ const insertOldBattery = async (req, res) => {
         // Tìm giao dịch swap
         const swapHistory = await BatterySwapHistory.findOne({ swapId });
         if (!swapHistory) {
-            return res.status(404).json({ message: 'Không tìm thấy giao dịch đổi pin' });
+            return res.status(404).json({ message: 'Swap transaction not found' });
         }
 
         if (swapHistory.status !== 'initiated') {
-            return res.status(400).json({ message: 'Giao dịch không ở trạng thái phù hợp' });
+            return res.status(400).json({ message: 'Transaction not in a valid state' });
         }
 
         // Tìm hoặc tạo battery record cho pin cũ
@@ -555,12 +555,12 @@ const insertOldBattery = async (req, res) => {
             // ✅ Validate đầy đủ thông tin khi tạo mới
             if (!model) {
                 return res.status(400).json({
-                    message: 'Thiếu thông tin battery: model là bắt buộc khi tạo pin mới'
+                    message: 'Missing battery information: model is required when creating a new battery'
                 });
             }
             if (!price && price !== 0) {
                 return res.status(400).json({
-                    message: 'Thiếu thông tin battery: price là bắt buộc khi tạo pin mới'
+                    message: 'Missing battery information: price is required when creating a new battery'
                 });
             }
 
@@ -584,7 +584,7 @@ const insertOldBattery = async (req, res) => {
         // Tìm slot
         const slot = await BatterySlot.findById(slotId);
         if (!slot) {
-            return res.status(404).json({ message: 'Không tìm thấy slot' });
+            return res.status(404).json({ message: 'Slot not found' });
         }
 
         // Bỏ pin vào slot
@@ -601,17 +601,17 @@ const insertOldBattery = async (req, res) => {
         await swapHistory.save();
 
         res.json({
-            message: 'Đã nhận pin cũ. Please lấy pin mới.',
+            message: 'Old battery received. Please take the new battery.',
             swapId: swapHistory.swapId,
             oldBattery: {
                 serial: oldBattery.serial,
                 slotNumber: slot.slotNumber
             },
-            nextStep: 'Lấy pin mới và xác nhận hoàn thành'
+            nextStep: 'Take the new battery and confirm completion'
         });
     } catch (error) {
         console.error('Error inserting old battery:', error);
-        res.status(500).json({ message: 'Lỗi xử lý pin cũ', error: error.message });
+        res.status(500).json({ message: 'Error processing old battery', error: error.message });
     }
 };
 
@@ -628,11 +628,11 @@ const completeSwap = async (req, res) => {
             .populate('pillar');
 
         if (!swapHistory) {
-            return res.status(404).json({ message: 'Không tìm thấy giao dịch đổi pin' });
+            return res.status(404).json({ message: 'Swap transaction not found' });
         }
 
         if (swapHistory.status !== 'in-progress') {
-            return res.status(400).json({ message: 'Giao dịch chưa sẵn sàng để hoàn thành' });
+            return res.status(400).json({ message: 'Transaction not in a valid state' });
         }
 
         // Remove new battery from slot
@@ -693,7 +693,7 @@ const completeSwap = async (req, res) => {
         });
     } catch (error) {
         console.error('Error completing swap:', error);
-        res.status(500).json({ message: 'Lỗi hoàn thành giao dịch đổi pin', error: error.message });
+        res.status(500).json({ message: 'Error completing swap transaction', error: error.message });
     }
 };
 
@@ -738,7 +738,7 @@ const getSwapHistory = async (req, res) => {
         });
     } catch (error) {
         console.error('Error getting swap history:', error);
-        res.status(500).json({ message: 'Lỗi lấy lịch sử đổi pin', error: error.message });
+        res.status(500).json({ message: 'Error getting swap history', error: error.message });
     }
 };
 
@@ -753,26 +753,26 @@ const assignBatteryToSlot = async (req, res) => {
         // Kiểm tra battery có tồn tại không
         const battery = await Battery.findById(batteryId);
         if (!battery) {
-            return res.status(404).json({ message: 'Không tìm thấy pin' });
+            return res.status(404).json({ message: 'Battery not found' });
         }
 
         // ✅ Kiểm tra Battery Status - Không được gán pin đang lỗi hoặc đang sử dụng
         if (battery.status === 'faulty') {
             return res.status(400).json({
-                message: 'Pin bị lỗi (faulty). Không thể gán vào slot. Please sửa chữa trước.'
+                message: 'Battery is faulty. Cannot assign to slot. Please repair first.'
             });
         }
 
         if (battery.status === 'in-use') {
             return res.status(400).json({
-                message: 'Pin đang được sử dụng (in-use). Không thể gán vào slot.'
+                message: 'Battery is currently in use (in-use). Cannot assign to slot.'
             });
         }
 
         // Kiểm tra battery đã ở trong slot khác chưa
         if (battery.currentSlot) {
             return res.status(400).json({
-                message: 'Pin đang ở trong slot khác. Please lấy pin ra trước.'
+                message: 'Battery is currently in another slot. Please remove it first.'
             });
         }
 
@@ -782,19 +782,19 @@ const assignBatteryToSlot = async (req, res) => {
             .populate('station', 'stationName');
 
         if (!slot) {
-            return res.status(404).json({ message: 'Không tìm thấy slot' });
+            return res.status(404).json({ message: 'Slot not found' });
         }
 
         // Kiểm tra staff chỉ được gán pin tại trạm của mình (trừ admin)
         if (userRole === 'staff') {
             if (!userStation) {
                 return res.status(403).json({
-                    message: 'Staff chưa được phân công trạm. Please liên hệ admin.'
+                    message: 'Staff has not been assigned a station. Please contact admin.'
                 });
             }
             if (slot.station._id.toString() !== userStation.toString()) {
                 return res.status(403).json({
-                    message: 'Bạn chỉ có quyền quản lý slot tại trạm được phân công.'
+                    message: 'You are only authorized to manage slots at your assigned station.'
                 });
             }
         }
@@ -802,14 +802,14 @@ const assignBatteryToSlot = async (req, res) => {
         // Kiểm tra slot đã có pin chưa
         if (slot.battery) {
             return res.status(400).json({
-                message: 'Slot đã có pin. Please chọn slot trống.'
+                message: 'Slot already has a battery. Please choose an empty slot.'
             });
         }
 
         // Kiểm tra Slot Status - Chỉ cho phép gán vào slot 'empty'
         if (slot.status !== 'empty') {
             return res.status(400).json({
-                message: `Slot hiện đang ${slot.status}. Chỉ có thể gán pin vào slot trống (empty).`
+                message: `Slot is currently ${slot.status}. Can only assign battery to an empty slot.`
             });
         }
 
@@ -845,7 +845,7 @@ const assignBatteryToSlot = async (req, res) => {
         }
 
         res.json({
-            message: 'Gán pin vào slot thành công',
+            message: 'Battery assigned to slot successfully',
             battery: {
                 serial: battery.serial,
                 model: battery.model,
@@ -866,7 +866,7 @@ const assignBatteryToSlot = async (req, res) => {
         });
     } catch (error) {
         console.error('Error assigning battery to slot:', error);
-        res.status(500).json({ message: 'Lỗi gán pin vào slot', error: error.message });
+        res.status(500).json({ message: 'Error assigning battery to slot', error: error.message });
     }
 };
 
@@ -885,19 +885,19 @@ const removeBatteryFromSlot = async (req, res) => {
             .populate('station', 'stationName');
 
         if (!slot) {
-            return res.status(404).json({ message: 'Không tìm thấy slot' });
+            return res.status(404).json({ message: 'Slot not found' });
         }
 
         // Kiểm tra staff chỉ được lấy pin tại trạm của mình (trừ admin)
         if (userRole === 'staff') {
             if (!userStation) {
                 return res.status(403).json({
-                    message: 'Staff chưa được phân công trạm. Please liên hệ admin.'
+                    message: 'Staff has not been assigned a station. Please contact admin.'
                 });
             }
             if (slot.station._id.toString() !== userStation.toString()) {
                 return res.status(403).json({
-                    message: 'Bạn chỉ có quyền quản lý slot tại trạm được phân công.'
+                    message: 'You are only authorized to manage slots at your assigned station.'
                 });
             }
         }
@@ -905,14 +905,14 @@ const removeBatteryFromSlot = async (req, res) => {
         // Kiểm tra slot có pin không
         if (!slot.battery) {
             return res.status(400).json({
-                message: 'Slot đang trống. Không có pin để lấy ra.'
+                message: 'Slot is empty. No battery to remove.'
             });
         }
 
         // ✅ Kiểm tra Slot Status - Chỉ cho phép lấy pin từ slot 'occupied'
         if (slot.status !== 'occupied') {
             return res.status(400).json({
-                message: `Slot hiện đang ${slot.status}. Chỉ có thể lấy pin từ slot đang có pin (occupied).`
+                message: `Slot is currently ${slot.status}. Can only remove battery from an occupied slot.`
             });
         }
 
@@ -947,7 +947,7 @@ const removeBatteryFromSlot = async (req, res) => {
         }
 
         res.json({
-            message: 'Lấy pin ra khỏi slot thành công',
+            message: 'Battery removed from slot successfully',
             battery: batteryInfo,
             slot: {
                 slotNumber: slot.slotNumber,
@@ -959,7 +959,7 @@ const removeBatteryFromSlot = async (req, res) => {
         });
     } catch (error) {
         console.error('Error removing battery from slot:', error);
-        res.status(500).json({ message: 'Lỗi lấy pin ra khỏi slot', error: error.message });
+        res.status(500).json({ message: 'Error removing battery from slot', error: error.message });
     }
 };
 
