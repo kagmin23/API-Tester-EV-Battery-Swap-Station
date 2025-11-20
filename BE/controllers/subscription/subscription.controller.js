@@ -48,7 +48,7 @@ const createSubscriptionPayment = async (req, res) => {
     if (!req.user || req.user.role !== 'driver') {
       return res.status(403).json({ success: false, message: 'Only drivers can purchase subscriptions' });
     }
-    const { planId, returnUrl: clientReturnUrl } = req.body || {};
+    const { planId, returnUrl: clientReturnUrl, monthly_day } = req.body || {};
     if (!planId || !clientReturnUrl) return res.status(400).json({ success: false, message: 'planId and returnUrl are required' });
 
     const serverReturnUrl = process.env.VNP_RETURN_URL;
@@ -139,6 +139,11 @@ const createSubscriptionPayment = async (req, res) => {
         cancelled.start_date = start;
         cancelled.end_date = end;
         cancelled.remaining_swaps = remaining_swaps;
+        // accept monthly_day if provided
+        if (monthly_day && Number.isFinite(Number(monthly_day))) {
+          const md = Number(monthly_day);
+          if (md >=1 && md <=28) cancelled.monthly_day = md;
+        }
         cancelled.status = 'active';
         const sub = await cancelled.save();
         payment.extra = payment.extra || {};
@@ -149,14 +154,19 @@ const createSubscriptionPayment = async (req, res) => {
       }
 
       // create new subscription
-      const sub = await UserSubscription.create({
+      const createPayload = {
         user: req.user.id,
         plan: plan._id,
         start_date: start,
         end_date: end,
         remaining_swaps,
         status: 'active',
-      });
+      };
+      if (monthly_day && Number.isFinite(Number(monthly_day))) {
+        const md = Number(monthly_day);
+        if (md >=1 && md <=28) createPayload.monthly_day = md;
+      }
+      const sub = await UserSubscription.create(createPayload);
       payment.extra = payment.extra || {};
       payment.extra.subscriptionId = sub._id.toString();
       payment.status = 'success';
@@ -182,7 +192,7 @@ const purchaseSubscription = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Only drivers can purchase subscriptions' });
     }
 
-    const { planId, start_date } = req.body || {};
+    const { planId, start_date, monthly_day } = req.body || {};
     if (!planId) return res.status(400).json({ success: false, message: 'planId is required' });
 
     const plan = await SubscriptionPlan.findById(planId);
@@ -227,6 +237,11 @@ const purchaseSubscription = async (req, res) => {
       existingCancelled.start_date = start;
       existingCancelled.end_date = end;
       existingCancelled.remaining_swaps = remaining_swaps;
+      // accept monthly_day if provided
+      if (monthly_day && Number.isFinite(Number(monthly_day))) {
+        const md = Number(monthly_day);
+        if (md >=1 && md <=28) existingCancelled.monthly_day = md;
+      }
       existingCancelled.status = 'active';
       await existingCancelled.save();
       return res.status(200).json({ success: true, data: existingCancelled, message: 'Subscription re-activated' });
@@ -243,14 +258,20 @@ const purchaseSubscription = async (req, res) => {
 
     const remaining_swaps = (plan.count_swap === null || plan.count_swap === undefined) ? null : plan.count_swap;
 
-    const sub = await UserSubscription.create({
+    const payload = {
       user: req.user.id,
       plan: plan._id,
       start_date: start,
       end_date: end,
       remaining_swaps,
       status: 'active',
-    });
+    };
+    if (monthly_day && Number.isFinite(Number(monthly_day))) {
+      const md = Number(monthly_day);
+      if (md >=1 && md <=28) payload.monthly_day = md;
+    }
+
+    const sub = await UserSubscription.create(payload);
 
     return res.status(201).json({ success: true, data: sub });
   } catch (err) {
@@ -289,9 +310,34 @@ const confirmPurchase = async (req, res) => {
   }
 };
 
+// Set or change the monthly swap day for the user's active subscription
+const setMonthlySwapDay = async (req, res) => {
+  try {
+    if (!req.user || req.user.role !== 'driver') {
+      return res.status(403).json({ success: false, message: 'Only drivers can set monthly swap day' });
+    }
+
+    const { monthly_day } = req.body || {};
+    if (!monthly_day || !Number.isFinite(Number(monthly_day))) return res.status(400).json({ success: false, message: 'monthly_day (1-28) is required' });
+    const md = Number(monthly_day);
+    if (md < 1 || md > 28) return res.status(400).json({ success: false, message: 'monthly_day must be between 1 and 28' });
+
+    const sub = await UserSubscription.findOne({ user: req.user.id, status: { $in: ['active','in-use'] } });
+    if (!sub) return res.status(404).json({ success: false, message: 'Active subscription not found' });
+
+    sub.monthly_day = md;
+    await sub.save();
+
+    return res.status(200).json({ success: true, data: sub, message: 'Monthly swap day set' });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   getPlansForUser,
   purchaseSubscription,
   createSubscriptionPayment,
   confirmPurchase,
+  setMonthlySwapDay,
 };

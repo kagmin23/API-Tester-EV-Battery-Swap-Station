@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../../middlewares/auth/auth.middleware');
 const { getMe, updateMe, uploadAvatar } = require('../../controllers/user/user.controller');
-const { getPlansForUser, purchaseSubscription, createSubscriptionPayment, confirmPurchase } = require('../../controllers/subscription/subscription.controller');
+const { getPlansForUser, purchaseSubscription, createSubscriptionPayment, confirmPurchase, setMonthlySwapDay } = require('../../controllers/subscription/subscription.controller');
 const uploadAvatarMiddleware = require('../../middlewares/upload/avatarUpload.middleware');
 
 /**
@@ -148,6 +148,7 @@ router.post('/subscriptions/confirm', confirmPurchase);
  *         description: Forbidden (only drivers allowed)
  */
 router.post('/subscriptions/purchase', purchaseSubscription);
+router.post('/subscriptions/monthly-day', setMonthlySwapDay);
 
 /**
  * @swagger

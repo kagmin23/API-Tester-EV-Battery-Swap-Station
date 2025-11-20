@@ -43,17 +43,69 @@ const createBooking = async (req, res) => {
 
     // Validate battery exists and is available at the station
     // ✅ Check Battery Status (sức khỏe pin)
-    const battery = await Battery.findOne({
-      _id: body.battery_id,
-      station: body.station_id,
-      status: { $in: ["idle", "full"] }, // ✅ Battery Status: Pin đầy hoặc nhàn rỗi
-    }).populate('currentSlot'); // ✅ Populate slot để check Slot Status
+    // Debug logs: print request and user ids to help diagnose "not found" cases
+    try {
+      console.log('🔎 Booking debug - req.user.id:', req.user && req.user.id);
+      console.log('🔎 Booking debug - request body:', JSON.stringify(body));
+    } catch (e) {
+      // ignore logging errors
+    }
+
+    // Fetch battery by id and manually validate station/status so we can
+    // allow the case where status === 'is-booking' but the slot is reserved
+    // for the same user (frontend may pre-reserve).
+    const battery = await Battery.findById(body.battery_id).populate('currentSlot');
+
+    try {
+      const batteryObj = battery ? battery.toObject() : null;
+      console.log('🔎 Booking debug - Battery.findById (initial) result:', JSON.stringify(batteryObj, null, 2));
+    } catch (e) {
+      console.log('🔎 Booking debug - Battery.findById (initial) result: [unable to stringify]');
+    }
 
     if (!battery) {
+      // Additional debug: fetch by ID only to inspect actual stored doc
       return res.status(400).json({
         success: false,
-        message:
-          "Battery not found, not at this station, or not available for booking",
+        message: "Battery not found",
+      });
+    }
+
+    // Validate station matches
+    if (!battery.station || battery.station.toString() !== body.station_id) {
+      return res.status(400).json({ success: false, message: 'Battery is not at this station' });
+    }
+
+    // Check allowed status:
+    // - allow if battery.status is 'idle' or 'full'
+    // - OR allow if battery.status === 'is-booking' AND the slot reservation (if any)
+    //   belongs to the same user (frontend may have reserved the slot)
+    const allowedStatuses = ['idle', 'full'];
+    let allowedByStatus = allowedStatuses.includes(battery.status);
+
+    if (!allowedByStatus && battery.status === 'is-booking') {
+      // show debug about slot reservation (if any)
+      try {
+        console.log('🔎 Booking debug - currentSlot reservation:', JSON.stringify(battery.currentSlot && battery.currentSlot.reservation));
+      } catch (e) {
+        console.log('🔎 Booking debug - currentSlot reservation: [unable to stringify]');
+      }
+
+      // allow if slot is occupied and either there is no reservation
+      // or reservation belongs to same user
+      const slotStatus = battery.currentSlot && battery.currentSlot.status;
+      const slotRes = battery.currentSlot && battery.currentSlot.reservation;
+
+      if (slotStatus === 'occupied' && (!slotRes || !slotRes.user || (req.user && req.user.id && slotRes.user.toString() === req.user.id.toString()))) {
+        allowedByStatus = true;
+        console.log('🔎 Booking debug - allowing booking for is-booking battery because slot is occupied and not reserved by another user');
+      }
+    }
+
+    if (!allowedByStatus) {
+      return res.status(400).json({
+        success: false,
+        message: "Battery not found, not at this station, or not available for booking",
       });
     }
 

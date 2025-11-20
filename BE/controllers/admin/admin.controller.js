@@ -327,6 +327,7 @@ const upsertPlanSchema = z.object({
   subscriptionName: z.string().min(1).optional(),
   price: z.number().min(0).optional(),
   durations: z.number().int().min(1).optional(),
+  type: z.enum(['change','periodic']).optional(),
   count_swap: z.number().int().min(0).nullable().optional(),
   quantity_slot: z.number().int().min(1).nullable().optional(),
   description: z.string().optional().optional(),
