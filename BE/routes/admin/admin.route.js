@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, deletePlan, reportsOverview, reportsUsage, aiPredictions, createStation, updateStation, deleteStation, changeUserRole, changeUserStatus, assignStaffToStation, removeStaffFromStation } = require('../../controllers/admin/admin.controller');
+const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, deletePlan, reportsOverview, reportsUsage, aiPredictions, createStation, updateStation, deleteStation, changeUserRole, changeUserStatus, assignStaffToStation, removeStaffFromStation, triggerPeriodicReservation } = require('../../controllers/admin/admin.controller');
 const feedbackController = require('../../controllers/feedback/feedback.controller');
 
 // Public endpoint: list stations is accessible to unauthenticated users (e.g., drivers)
@@ -756,6 +756,10 @@ router.get('/subscriptions/plans', listPlans);
  *                 type: integer
  *                 minimum: 1
  *                 description: Duration of the plan in months
+ *               type:
+ *                 type: string
+ *                 enum: [change, periodic]
+ *                 description: Type of the subscription plan. 'change' = per-swap; 'periodic' = monthly fixed-day reservation
  *               count_swap:
  *                 type: integer
  *                 minimum: 0
@@ -778,6 +782,30 @@ router.get('/subscriptions/plans', listPlans);
  *         description: Unauthorized
  */
 router.post('/subscriptions/plans', upsertPlan);
+/**
+ * @swagger
+ * /api/admin/subscriptions/{id}/trigger-reservation:
+ *   post:
+ *     summary: Admin/dev trigger to create a periodic reservation for a subscription
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: UserSubscription id
+ *     responses:
+ *       200:
+ *         description: Reservation created
+ *       400:
+ *         description: Could not create reservation (no battery, invalid plan, etc.)
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/subscriptions/:id/trigger-reservation', triggerPeriodicReservation);
 /**
  * @swagger
  * /api/admin/subscriptions/plans/{id}:
@@ -817,6 +845,10 @@ router.post('/subscriptions/plans', upsertPlan);
  *               quantity_slot:
  *                 type: integer
  *                 description: Maximum number of users who can purchase this plan (null = unlimited)
+ *               type:
+ *                 type: string
+ *                 enum: [change, periodic]
+ *                 description: Type of the subscription plan. 'change' = per-swap; 'periodic' = monthly fixed-day reservation
  *               description:
  *                 type: string
  *                 description: Human-readable description of the plan

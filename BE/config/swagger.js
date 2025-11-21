@@ -24,6 +24,36 @@ const swaggerDefinition = {
                 bearerFormat: "JWT",
             },
         },
+        schemas: {
+            SubscriptionPlan: {
+                type: 'object',
+                properties: {
+                    _id: { type: 'string' },
+                    subscriptionName: { type: 'string' },
+                    price: { type: 'number' },
+                    durations: { type: 'integer' },
+                    type: { type: 'string', enum: ['change', 'periodic'] },
+                    count_swap: { type: ['integer', 'null'] },
+                    quantity_slot: { type: ['integer', 'null'] },
+                    description: { type: 'string' },
+                }
+            },
+            UserSubscription: {
+                type: 'object',
+                properties: {
+                    _id: { type: 'string' },
+                    user: { type: 'string' },
+                    plan: { type: 'string' },
+                    start_date: { type: 'string', format: 'date-time' },
+                    end_date: { type: 'string', format: 'date-time' },
+                    remaining_swaps: { type: ['integer', 'null'] },
+                    status: { type: 'string' },
+                    monthly_day: { type: 'string', format: 'date-time', description: 'ISO date representing initial monthly swap selection (use day-of-month 1-28)' },
+                    last_reserved_month: { type: 'string', description: 'YYYY-MM of last reservation' },
+                    station: { type: 'string', description: 'station id where periodic reservation should be created' }
+                }
+            }
+        }
     },
     security: [
         {

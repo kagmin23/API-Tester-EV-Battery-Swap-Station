@@ -323,16 +323,30 @@ const listPlans = async (req, res) => {
     return res.status(400).json({ success: false, message: err.message });
   }
 };
-const upsertPlanSchema = z.object({
+const baseFields = {
   subscriptionName: z.string().min(1).optional(),
   price: z.number().min(0).optional(),
   durations: z.number().int().min(1).optional(),
-  type: z.enum(['change','periodic']).optional(),
-  count_swap: z.number().int().min(0).nullable().optional(),
-  quantity_slot: z.number().int().min(1).nullable().optional(),
   description: z.string().optional().optional(),
   status: z.enum(["active", "expired"]).optional(),
-});
+};
+
+// discriminated union: different validation for 'change' vs 'periodic'
+const upsertPlanSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('change'),
+    ...baseFields,
+    count_swap: z.number().int().min(0).nullable().optional(),
+    quantity_slot: z.number().int().min(1).nullable().optional(),
+  }),
+  z.object({
+    type: z.literal('periodic'),
+    ...baseFields,
+    // periodic plans: count_swap and quantity_slot are optional and may be 0
+    count_swap: z.number().int().min(0).nullable().optional(),
+    quantity_slot: z.number().int().min(0).nullable().optional(),
+  }),
+]);
 const upsertPlan = async (req, res) => {
   try {
     const body = upsertPlanSchema.parse(req.body);
@@ -392,6 +406,25 @@ const deletePlan = async (req, res) => {
       data: { id },
       message: 'Subscription plan deleted successfully'
     });
+  } catch (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+// Admin: trigger periodic reservation for a given UserSubscription (dev/admin tool)
+const triggerPeriodicReservation = async (req, res) => {
+  try {
+    const subId = req.params.id || req.body.subscriptionId;
+    if (!subId) return res.status(400).json({ success: false, message: 'subscription id is required' });
+    const sub = await UserSubscription.findById(subId);
+    if (!sub) return res.status(404).json({ success: false, message: 'UserSubscription not found' });
+
+    const service = require('../../services/subscription/periodicReservation.service');
+    const result = await service.createReservationForSubscription(sub);
+    if (result.ok) {
+      return res.status(200).json({ success: true, data: result.details, message: 'Reservation created' });
+    }
+    return res.status(400).json({ success: false, message: result.reason || 'failed to create reservation', details: result });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
@@ -670,4 +703,5 @@ module.exports = {
   changeUserStatus,
   assignStaffToStation,
   removeStaffFromStation,
+  triggerPeriodicReservation,
 };

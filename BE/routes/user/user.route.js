@@ -148,6 +148,43 @@ router.post('/subscriptions/confirm', confirmPurchase);
  *         description: Forbidden (only drivers allowed)
  */
 router.post('/subscriptions/purchase', purchaseSubscription);
+/**
+ * @swagger
+ * /api/users/subscriptions/monthly-day:
+ *   post:
+ *     summary: Set or change the monthly swap day for the authenticated driver's active subscription
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [planId, monthly_day, station_id]
+ *             properties:
+ *               planId:
+ *                 type: string
+ *                 description: The subscription plan id (required to identify which subscription to update)
+ *                 example: "691fab5f3b6e517080420874"
+ *               monthly_day:
+ *                 type: string
+ *                 format: date-time
+ *                 description: ISO date string representing initial monthly swap date (day-of-month will be used, recommend 1-28)
+ *                 example: "2025-11-21"
+ *               station_id:
+ *                 type: string
+ *                 description: Station id where the periodic reservation should be created
+ *                 example: "6911f7f101d02faccfb3f6ab"
+ *     responses:
+ *       200:
+ *         description: Monthly swap day set
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ */
 router.post('/subscriptions/monthly-day', setMonthlySwapDay);
 
 /**
