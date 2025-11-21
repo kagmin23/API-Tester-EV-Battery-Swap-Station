@@ -328,17 +328,51 @@ const confirmPurchase = async (req, res) => {
     const { planId } = req.body || {};
     if (!planId) return res.status(400).json({ success: false, message: 'planId is required' });
 
+    const plan = await SubscriptionPlan.findById(planId);
+    if (!plan) return res.status(404).json({ success: false, message: 'Plan not found' });
+
     const sub = await UserSubscription.findOne({ plan: planId, user: req.user.id });
     if (!sub) return res.status(404).json({ success: false, message: 'Subscription for this plan not found' });
 
-    // Only allow transition to 'in-use' from 'active' (or from 'in-use' is error)
+    // If already in-use, error
     if (sub.status === 'in-use') {
       return res.status(400).json({ success: false, message: 'Subscription is already in-use' });
     }
-    if (sub.status !== 'active') {
+
+    // Only allow confirmation from 'pending' or 'active'
+    if (!['pending', 'active'].includes(sub.status)) {
       return res.status(400).json({ success: false, message: `Subscription cannot be confirmed from status '${sub.status}'` });
     }
 
+    // Prevent having another active/in-use subscription for this user
+    const now = new Date();
+    const existingOther = await UserSubscription.findOne({
+      user: req.user.id,
+      _id: { $ne: sub._id },
+      status: { $in: ['active', 'in-use'] },
+      $or: [
+        { end_date: { $exists: false } },
+        { end_date: null },
+        { end_date: { $gt: now } },
+      ],
+    });
+    if (existingOther) {
+      return res.status(400).json({ success: false, message: 'You already have an active subscription. Please wait until it expires before confirming this purchase.' });
+    }
+
+    // Set start_date, end_date, remaining_swaps if needed and mark in-use
+    const start = sub.start_date || new Date();
+    let end = sub.end_date || null;
+    if (!end && plan.durations && Number.isFinite(Number(plan.durations))) {
+      const d = new Date(start);
+      d.setMonth(d.getMonth() + Number(plan.durations));
+      end = d;
+    }
+    const remaining_swaps = (sub.remaining_swaps === null || sub.remaining_swaps === undefined) ? ((plan.count_swap === null || plan.count_swap === undefined) ? null : plan.count_swap) : sub.remaining_swaps;
+
+    sub.start_date = start;
+    sub.end_date = end;
+    sub.remaining_swaps = remaining_swaps;
     sub.status = 'in-use';
     await sub.save();
 
