@@ -1,5 +1,6 @@
 const { z, ZodError } = require("zod");
 const Vehicle = require("../../models/vehicle/vehicle.model");
+const Battery = require("../../models/battery/battery.model");
 
 const vehicleCreateSchema = z.object({
   vin: z
@@ -7,7 +8,22 @@ const vehicleCreateSchema = z.object({
     .regex(/^[A-HJ-NPR-Z0-9]{17}$/i, {
       message: "VIN must be 17 characters (no I,O,Q)",
     }),
-  battery_model: z.string().trim().optional().default(""),
+  battery: z
+    .object({
+      serial: z.string().trim(),
+      model: z.string().trim().optional(),
+      soh: z.number().min(0).max(100).optional(),
+      manufacturer: z.string().trim().optional(),
+      station: z.string().trim().optional(),
+      capacity_kWh: z.number().min(0).optional(),
+      price: z.number().min(0).optional(),
+      voltage: z.number().min(0).optional(),
+      status: z
+        .enum(["charging", "full", "faulty", "in-use", "idle", "is-booking"]) // matches battery.model
+        .optional(),
+    })
+    .optional()
+    .nullable(),
   license_plate: z.string().min(4).max(15),
   car_name: z.string().trim().optional().default(""),
   brand: z.string().trim().optional().default(""),
@@ -23,7 +39,7 @@ const formatVehicle = (v) => ({
   vehicle_id: v.vehicleId,
   user_id: v.user.toString(),
   vin: v.vin,
-  battery_model: v.batteryModel || "",
+  battery_id: v.battery ? v.battery.toString() : null,
   license_plate: v.licensePlate,
   car_name: v.carName || "",
   brand: v.brand || "",
@@ -34,7 +50,10 @@ const formatVehicle = (v) => ({
 
 const createVehicle = async (req, res) => {
   try {
+    // Log raw incoming body for debugging mismatches
+    console.log('createVehicle raw body:', req.body);
     const body = vehicleCreateSchema.parse(req.body);
+    console.log('createVehicle parsed body:', body);
     const userId = req.user.id;
 
     const existsVin = await Vehicle.findOne({ vin: body.vin.toUpperCase() });
@@ -45,10 +64,32 @@ const createVehicle = async (req, res) => {
     if (existsPlate)
       return res.status(409).json({ success: false, message: "License plate already registered" });
 
+    // If client provided a battery object, create the Battery document and attach its id.
+    let batteryToAttach = null;
+    if (body.battery) {
+      try {
+        const created = await Battery.create({
+          ...body.battery,
+          soh: body.battery.soh !== undefined ? body.battery.soh : 100,
+          status: body.battery.status !== undefined ? body.battery.status : 'in-use',
+        });
+        batteryToAttach = created._id;
+      } catch (err) {
+        // If serial already exists (unique index), find and attach existing battery instead of failing.
+        if (err && err.code === 11000 && body.battery && body.battery.serial) {
+          const existing = await Battery.findOne({ serial: body.battery.serial });
+          if (existing) batteryToAttach = existing._id;
+          else throw err;
+        } else {
+          throw err;
+        }
+      }
+    }
+
     const vehicle = await Vehicle.create({
       user: userId,
       vin: body.vin.toUpperCase(),
-      batteryModel: body.battery_model,
+      battery: batteryToAttach || null,
       licensePlate: body.license_plate.toUpperCase(),
       carName: body.car_name,
       brand: body.brand,
@@ -59,8 +100,10 @@ const createVehicle = async (req, res) => {
   } catch (err) {
     if (err instanceof ZodError) {
       const first = err.errors?.[0];
+      console.log('createVehicle validation errors:', err.errors);
       return res.status(400).json({ success: false, data: { issues: err.errors }, message: first?.message || "Invalid input" });
     }
+    console.error('createVehicle error:', err);
     return res.status(400).json({ success: false, message: err.message });
   }
 };
@@ -85,10 +128,18 @@ const listVehicles = async (req, res) => {
 
 const getVehicle = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params; // route uses /:id
+    console.log('getVehicle params:', req.params);
+
+    // Basic validation: reject placeholder values like '{vehicleId}'
+    if (!id || id.includes('{') || id.includes('}')) {
+      return res.status(400).json({ success: false, message: 'Invalid vehicle id provided' });
+    }
+
+    // We store a `vehicleId` field on the document (not _id), so query by that
     const v = await Vehicle.findOne({ vehicleId: id });
     if (!v) return res.status(404).json({ success: false, message: 'Vehicle not found' });
-    if (req.user.role !== 'admin' && req.user.role !== 'staff' && v.user.toString() !== req.user.id) {
+    if (req.user.role !== 'admin' && req.user.role !== 'staff' && req.user.role !== 'driver' && v.user.toString() !== req.user.id) {
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
     return res.status(200).json({ success: true, data: formatVehicle(v) });
@@ -98,7 +149,21 @@ const getVehicle = async (req, res) => {
 };
 
 const vehicleUpdateSchema = z.object({
-  battery_model: z.string().trim().optional(),
+  battery: z
+    .object({
+      serial: z.string().trim(),
+      model: z.string().trim().optional(),
+      soh: z.number().min(0).max(100).optional(),
+      manufacturer: z.string().trim().optional(),
+      capacity_kWh: z.number().min(0).optional(),
+      price: z.number().min(0).optional(),
+      voltage: z.number().min(0).optional(),
+      status: z
+        .enum(["charging", "full", "faulty", "in-use", "idle", "is-booking"]) // matches battery.model
+        .optional(),
+    })
+    .optional()
+    .nullable(),
   license_plate: z.string().min(4).max(15).optional(),
   car_name: z.string().trim().optional(),
   brand: z.string().trim().optional(),
@@ -120,10 +185,32 @@ const updateVehicle = async (req, res) => {
       if (existsPlate) return res.status(409).json({ success: false, message: 'License plate already registered' });
       v.licensePlate = body.license_plate.toUpperCase();
     }
-    if (body.battery_model !== undefined) v.batteryModel = body.battery_model;
     if (body.car_name !== undefined) v.carName = body.car_name;
     if (body.brand !== undefined) v.brand = body.brand;
     if (body.model_year !== undefined) v.modelYear = body.model_year;
+    // Note: `battery_id` is no longer accepted. Provide `battery` object to create/attach.
+
+    // If a battery object is provided, create it and attach
+    if (body.battery) {
+      let batteryToAttach = null;
+      try {
+        const created = await Battery.create({
+          ...body.battery,
+          soh: body.battery.soh !== undefined ? body.battery.soh : 100,
+          status: body.battery.status !== undefined ? body.battery.status : 'in-use',
+        });
+        batteryToAttach = created._id;
+      } catch (err) {
+        if (err && err.code === 11000 && body.battery && body.battery.serial) {
+          const existing = await Battery.findOne({ serial: body.battery.serial });
+          if (existing) batteryToAttach = existing._id;
+          else throw err;
+        } else {
+          throw err;
+        }
+      }
+      v.battery = batteryToAttach;
+    }
 
     await v.save();
     return res.status(200).json({ success: true, data: formatVehicle(v), message: 'Vehicle updated' });

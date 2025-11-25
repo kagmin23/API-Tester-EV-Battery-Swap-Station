@@ -23,7 +23,13 @@ const vehicleSchema = new mongoose.Schema(
       trim: true,
       match: [/^[A-HJ-NPR-Z0-9]{17}$/, "VIN must be 17 characters (no I,O,Q)"],
     },
-    batteryModel: { type: String, trim: true },
+    // Reference to current battery assigned to vehicle (if any)
+    battery: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Battery',
+      default: null,
+      index: true
+    },
     licensePlate: {
       type: String,
       required: true,

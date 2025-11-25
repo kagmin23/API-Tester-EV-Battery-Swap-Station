@@ -29,13 +29,36 @@ router.use(authenticate);
  *         application/json:
  *           schema:
  *             type: object
- *             required: [vin, license_plate]
+ *             required:
+ *               - vin
+ *               - license_plate
  *             properties:
  *               vin:
  *                 type: string
  *                 description: 17-character VIN (no I,O,Q)
- *               battery_model:
- *                 type: string
+ *               battery:
+ *                 type: object
+ *                 properties:
+ *                   station:
+ *                     type: string
+ *                   serial:
+ *                     type: string
+ *                   model:
+ *                     type: string
+ *                   soh:
+ *                     type: number
+ *                     description: State of Health (0-100)
+ *                   manufacturer:
+ *                     type: string
+ *                   capacity_kWh:
+ *                     type: number
+ *                   price:
+ *                     type: number
+ *                   voltage:
+ *                     type: number
+ *                   status:
+ *                     type: string
+ *                     enum: [in-use, charging, full, faulty, idle, is-booking]
  *               license_plate:
  *                 type: string
  *               car_name:
@@ -50,12 +73,12 @@ router.use(authenticate);
  */
 router.post('/', createVehicle);
 
-// List vehicles (mine; admin can pass ?all=true to list all)
 /**
  * @swagger
  * /api/vehicles:
  *   get:
- *     summary: List current vehicles for admin
+ *     summary: List vehicles for current user
+ *     description: Returns vehicles belonging to the authenticated user. Admins can pass `?all=true` to list all vehicles.
  *     tags: [Vehicles]
  *     security:
  *       - bearerAuth: []
@@ -64,16 +87,55 @@ router.post('/', createVehicle);
  *         name: all
  *         schema:
  *           type: boolean
+ *         description: Set to `true` to list all vehicles (admin only)
  *     responses:
  *       200:
  *         description: Vehicles list
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       vehicle_id:
+ *                         type: string
+ *                       user_id:
+ *                         type: string
+ *                       vin:
+ *                         type: string
+ *                       battery_id:
+ *                         type: string
+ *                         nullable: true
+ *                       license_plate:
+ *                         type: string
+ *                       car_name:
+ *                         type: string
+ *                       brand:
+ *                         type: string
+ *                       model_year:
+ *                         type: integer
+ *                         nullable: true
+ *                       created_at:
+ *                         type: string
+ *                         format: date-time
+ *                       updated_at:
+ *                         type: string
+ *                         format: date-time
+ *                 message:
+ *                   type: string
  */
-router.get('/', listVehicles, authorizeRoles('admin'));
+router.get('/', listVehicles);
 
 // Get vehicle by vehicle_id
 /**
  * @swagger
- * /api/vehicles/{vehicleId}:
+ * /api/vehicles/{id}:
  *   get:
  *     summary: Get vehicle by vehicleId
  *     tags: [Vehicles]
