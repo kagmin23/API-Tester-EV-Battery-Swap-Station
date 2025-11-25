@@ -45,8 +45,6 @@ const createBooking = async (req, res) => {
     // ✅ Check Battery Status (sức khỏe pin)
     // Debug logs: print request and user ids to help diagnose "not found" cases
     try {
-      console.log('🔎 Booking debug - req.user.id:', req.user && req.user.id);
-      console.log('🔎 Booking debug - request body:', JSON.stringify(body));
     } catch (e) {
       // ignore logging errors
     }
@@ -58,9 +56,7 @@ const createBooking = async (req, res) => {
 
     try {
       const batteryObj = battery ? battery.toObject() : null;
-      console.log('🔎 Booking debug - Battery.findById (initial) result:', JSON.stringify(batteryObj, null, 2));
     } catch (e) {
-      console.log('🔎 Booking debug - Battery.findById (initial) result: [unable to stringify]');
     }
 
     if (!battery) {
@@ -86,9 +82,7 @@ const createBooking = async (req, res) => {
     if (!allowedByStatus && battery.status === 'is-booking') {
       // show debug about slot reservation (if any)
       try {
-        console.log('🔎 Booking debug - currentSlot reservation:', JSON.stringify(battery.currentSlot && battery.currentSlot.reservation));
       } catch (e) {
-        console.log('🔎 Booking debug - currentSlot reservation: [unable to stringify]');
       }
 
       // allow if slot is occupied and either there is no reservation
@@ -98,7 +92,6 @@ const createBooking = async (req, res) => {
 
       if (slotStatus === 'occupied' && (!slotRes || !slotRes.user || (req.user && req.user.id && slotRes.user.toString() === req.user.id.toString()))) {
         allowedByStatus = true;
-        console.log('🔎 Booking debug - allowing booking for is-booking battery because slot is occupied and not reserved by another user');
       }
     }
 
