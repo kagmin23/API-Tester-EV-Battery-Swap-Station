@@ -397,8 +397,47 @@ const upsertStaff = async (req, res) => {
 const listPlans = async (req, res) => {
   try {
     const status = req.query.status || 'active';
-    const items = await SubscriptionPlan.find({ status });
-    return res.status(200).json({ success: true, data: items });
+    // find plans by status
+    const items = await SubscriptionPlan.find({ status }).lean();
+
+    // if no plans, quick return
+    if (!items || !items.length) return res.status(200).json({ success: true, data: [] });
+
+    const planIds = items.map(p => p._id);
+
+    // fetch user subscriptions that reference these plans
+    // include subscriptions that are currently active or in-use
+    const subs = await UserSubscription.find({ plan: { $in: planIds }, status: { $in: ['active', 'in-use'] } })
+      .populate('user', 'fullName email phoneNumber')
+      .lean();
+
+    // group subscriptions by plan id
+    const subsByPlan = subs.reduce((acc, s) => {
+      const key = s.plan ? s.plan.toString() : 'unknown';
+      acc[key] = acc[key] || [];
+      acc[key].push({
+        id: s._id,
+        user: s.user ? { id: s.user._id, fullName: s.user.fullName, email: s.user.email, phoneNumber: s.user.phoneNumber } : null,
+        start_date: s.start_date,
+        end_date: s.end_date,
+        remaining_swaps: s.remaining_swaps,
+        status: s.status,
+      });
+      return acc;
+    }, {});
+
+    // attach user subscription info and counts to each plan
+    const enhanced = items.map(p => {
+      const pid = p._id.toString();
+      const users = subsByPlan[pid] || [];
+      return {
+        ...p,
+        subscribers: users,
+        subscriberCount: users.length,
+      };
+    });
+
+    return res.status(200).json({ success: true, data: enhanced });
   } catch (err) {
     return res.status(400).json({ success: false, message: err.message });
   }
