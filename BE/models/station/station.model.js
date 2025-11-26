@@ -17,7 +17,8 @@ const stationSchema = new mongoose.Schema({
     available: { type: Number, default: 0 }, // idle + full
     charging: { type: Number, default: 0 },
     inUse: { type: Number, default: 0 },
-    faulty: { type: Number, default: 0 }
+    faulty: { type: Number, default: 0 },
+    isBooking: { type: Number, default: 0 } // Batteries reserved for bookings
   },
 
   // Legacy field for backward compatibility
@@ -68,7 +69,8 @@ stationSchema.methods.updateBatteryCounts = async function () {
     available: 0,
     charging: 0,
     inUse: 0,
-    faulty: 0
+    faulty: 0,
+    isBooking: 0
   };
 
   // Update counts based on status
@@ -88,6 +90,9 @@ stationSchema.methods.updateBatteryCounts = async function () {
         break;
       case 'faulty':
         this.batteryCounts.faulty += item.count;
+        break;
+      case 'is-booking':
+        this.batteryCounts.isBooking += item.count;
         break;
     }
   });

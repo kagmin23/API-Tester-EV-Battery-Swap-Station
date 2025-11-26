@@ -564,6 +564,55 @@ const assignStaffToStation = async (req, res) => {
     const notStaff = users.filter(u => u.role !== 'staff').map(u => u._id.toString());
     if (notStaff.length) return res.status(400).json({ success: false, message: `Users are not staff: ${notStaff.join(',')}` });
 
+    // ✅ Validation: Check if staff being transferred is the last staff at old station with active bookings
+    const Battery = require('../../models/battery/battery.model');
+    
+    for (const user of users) {
+      // If staff already has a station (being transferred from old station to new)
+      if (user.station && user.station.toString() !== id) {
+        const oldStationId = user.station;
+        
+        // Count batteries with 'is-booking' status at old station
+        const bookingBatteriesCount = await Battery.countDocuments({
+          station: oldStationId,
+          status: 'is-booking'
+        });
+
+        // If old station has batteries with active bookings
+        if (bookingBatteriesCount > 0) {
+          // Count remaining staff at old station (excluding this staff)
+          const remainingStaffCount = await User.countDocuments({
+            role: 'staff',
+            station: oldStationId,
+            _id: { $ne: user._id }
+          });
+
+          // If no staff will remain at old station, block the transfer
+          if (remainingStaffCount === 0) {
+            const oldStation = await Station.findById(oldStationId);
+            return res.status(400).json({
+              success: false,
+              message: `Cannot transfer staff "${user.fullName}" from station "${oldStation?.stationName}". That station has ${bookingBatteriesCount} battery(ies) with active bookings and this staff member is the only one assigned. Please assign another staff member to that station first or wait for bookings to be completed.`,
+              details: {
+                staffName: user.fullName,
+                oldStationName: oldStation?.stationName,
+                oldStationId: oldStationId,
+                bookingBatteriesCount,
+                remainingStaffCount: 0,
+                reason: 'Old station requires at least one staff member when there are active bookings'
+              }
+            });
+          }
+
+          // Warning if only 1 staff will remain at old station
+          if (remainingStaffCount === 1) {
+            const oldStation = await Station.findById(oldStationId);
+            console.warn(`⚠️ Warning: Station "${oldStation?.stationName}" will have only ${remainingStaffCount} staff member after transferring "${user.fullName}", with ${bookingBatteriesCount} active booking(s).`);
+          }
+        }
+      }
+    }
+
     // Assign station to the staff members
     await User.updateMany({ _id: { $in: ids } }, { $set: { station: station._id } });
     const updated = await User.find({ _id: { $in: ids } }).select('-password');
@@ -596,6 +645,44 @@ const removeStaffFromStation = async (req, res) => {
 
     if (staff.station?.toString() !== stationId) {
       return res.status(400).json({ success: false, message: 'Staff is not assigned to this station' });
+    }
+
+    // ✅ Validation: Check if station has active bookings and this is the only staff
+    const Battery = require('../../models/battery/battery.model');
+    
+    // Count batteries with 'is-booking' status at this station
+    const bookingBatteriesCount = await Battery.countDocuments({
+      station: stationId,
+      status: 'is-booking'
+    });
+
+    // If there are batteries with active bookings
+    if (bookingBatteriesCount > 0) {
+      // Count remaining staff at this station (excluding the staff being removed)
+      const remainingStaffCount = await User.countDocuments({
+        role: 'staff',
+        station: stationId,
+        _id: { $ne: staffId }
+      });
+
+      // If no staff will remain, block the removal
+      if (remainingStaffCount === 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot remove staff from station. Station has ${bookingBatteriesCount} battery(ies) with active bookings and this is the only staff member assigned. Please assign another staff member to this station first or wait for bookings to be completed.`,
+          details: {
+            stationName: station.stationName,
+            bookingBatteriesCount,
+            remainingStaffCount: 0,
+            reason: 'Station requires at least one staff member when there are active bookings'
+          }
+        });
+      }
+
+      // Warning if only 1 staff will remain
+      if (remainingStaffCount === 1) {
+        console.warn(`⚠️ Warning: Station "${station.stationName}" will have only ${remainingStaffCount} staff member after removal, with ${bookingBatteriesCount} active booking(s).`);
+      }
     }
 
     // Remove staff from station

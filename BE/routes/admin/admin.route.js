@@ -256,6 +256,7 @@ router.delete('/stations/:id', deleteStation);
  * /api/admin/stations/{id}/assign-staff:
  *   post:
  *     summary: Assign staff to a station (admin)
+ *     description: Assigns staff to a station. If staff is being transferred from another station, validates that the old station won't be left without staff when there are active bookings.
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -283,9 +284,46 @@ router.delete('/stations/:id', deleteStation);
  *                 description: Multiple staff ids to assign
  *     responses:
  *       200:
- *         description: Staff assigned to station
+ *         description: Staff assigned to station successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 message:
+ *                   type: string
+ *                   example: Staff assigned to station
  *       400:
- *         description: Invalid input
+ *         description: Cannot transfer staff - old station has active bookings and no remaining staff
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Cannot transfer staff from station. That station has active bookings.
+ *                 details:
+ *                   type: object
+ *                   properties:
+ *                     staffName:
+ *                       type: string
+ *                     oldStationName:
+ *                       type: string
+ *                     bookingBatteriesCount:
+ *                       type: number
+ *                     remainingStaffCount:
+ *                       type: number
  *       404:
  *         description: Station or staff not found
  */
@@ -295,6 +333,7 @@ router.post('/stations/:id/assign-staff', assignStaffToStation);
  * /api/admin/stations/{id}/staff/{staffId}:
  *   delete:
  *     summary: Remove staff from station (admin)
+ *     description: Removes staff from a station. Validates that the station won't be left without staff when there are active bookings (batteries with is-booking status).
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -313,9 +352,49 @@ router.post('/stations/:id/assign-staff', assignStaffToStation);
  *         description: Staff id to remove
  *     responses:
  *       200:
- *         description: Staff removed from station
+ *         description: Staff removed from station successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     staffId:
+ *                       type: string
+ *                     stationId:
+ *                       type: string
+ *                 message:
+ *                   type: string
+ *                   example: Staff removed from station
  *       400:
- *         description: Invalid input or staff not assigned to station
+ *         description: Cannot remove staff - station has active bookings and this is the only staff member
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Cannot remove staff from station. Station has active bookings and this is the only staff member assigned.
+ *                 details:
+ *                   type: object
+ *                   properties:
+ *                     stationName:
+ *                       type: string
+ *                     bookingBatteriesCount:
+ *                       type: number
+ *                     remainingStaffCount:
+ *                       type: number
+ *                     reason:
+ *                       type: string
  *       404:
  *         description: Station or staff not found
  */
