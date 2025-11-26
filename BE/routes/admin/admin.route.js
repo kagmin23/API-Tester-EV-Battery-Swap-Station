@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorizeRoles } = require('../../middlewares/auth/auth.middleware');
-const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, deletePlan, reportsOverview, reportsUsage, aiPredictions, createStation, updateStation, deleteStation, changeUserRole, changeUserStatus, assignStaffToStation, removeStaffFromStation, triggerPeriodicReservation } = require('../../controllers/admin/admin.controller');
+const { listStations, getStation, transferBatteries, listFaultyBatteries, listComplaints, resolveComplaint, listCustomers, getCustomer, listStaff, upsertStaff, listBatteries, deleteStaff, listPlans, upsertPlan, deletePlan, reportsOverview, reportsUsage, aiPredictions, createStation, updateStation, deleteStation, changeUserRole, changeUserStatus, assignStaffToStation, removeStaffFromStation, triggerPeriodicReservation, debugStationStaff } = require('../../controllers/admin/admin.controller');
 const feedbackController = require('../../controllers/feedback/feedback.controller');
 
 // Public endpoint: list stations is accessible to unauthenticated users (e.g., drivers)
@@ -256,7 +256,7 @@ router.delete('/stations/:id', deleteStation);
  * /api/admin/stations/{id}/assign-staff:
  *   post:
  *     summary: Assign staff to a station (admin)
- *     description: Assigns staff to a station. If staff is being transferred from another station, validates that the old station won't be left without staff when there are active bookings.
+ *     description: Assigns staff to a station. If staff is being transferred from another station, validates that the old station won't be left without at least one ACTIVE staff member when there are active bookings. Note - locked/suspended staff members are not counted as they cannot handle bookings.
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -333,7 +333,7 @@ router.post('/stations/:id/assign-staff', assignStaffToStation);
  * /api/admin/stations/{id}/staff/{staffId}:
  *   delete:
  *     summary: Remove staff from station (admin)
- *     description: Removes staff from a station. Validates that the station won't be left without staff when there are active bookings (batteries with is-booking status).
+ *     description: Removes staff from a station. Validates that the station won't be left without at least one ACTIVE staff member when there are active bookings (batteries with is-booking status). Note - locked/suspended staff members are not counted as they cannot handle bookings.
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -399,6 +399,31 @@ router.post('/stations/:id/assign-staff', assignStaffToStation);
  *         description: Station or staff not found
  */
 router.delete('/stations/:id/staff/:staffId', removeStaffFromStation);
+
+/**
+ * @swagger
+ * /api/admin/stations/{stationId}/debug:
+ *   get:
+ *     summary: Debug endpoint - Check station staff and bookings
+ *     description: Returns detailed information about staff count, booking batteries, and validation status for a station
+ *     tags: [Admin]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Station ID
+ *     responses:
+ *       200:
+ *         description: Debug information returned successfully
+ *       404:
+ *         description: Station not found
+ */
+router.get('/stations/:stationId/debug', debugStationStaff);
+
 /**
  * @swagger
  * /api/admin/stations/transfer:
@@ -654,6 +679,7 @@ router.post('/staff', upsertStaff);
  * /api/admin/staff/{id}:
  *   put:
  *     summary: Update a staff member
+ *     description: Updates a staff member. If changing the staff's station, validates that the old station won't be left without at least one ACTIVE staff member when there are active bookings. Note - locked/suspended staff members are not counted as they cannot handle bookings.
  *     tags: [Admin]
  *     security:
  *       - bearerAuth: []
@@ -686,12 +712,36 @@ router.post('/staff', upsertStaff);
  *                 minLength: 6
  *               stationId:
  *                 type: string
- *                 description: Optional station to assign the staff
+ *                 description: Optional station to assign the staff. Validation will prevent transfer if it leaves the old station without active staff during active bookings.
  *     responses:
  *       200:
  *         description: Staff updated
  *       400:
- *         description: Invalid input
+ *         description: Invalid input or staff cannot be transferred due to active bookings at the old station
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Cannot transfer staff \"John Doe\" from station \"Station A\". That station has 2 battery(ies) with active bookings and this staff member is the only active one assigned. (Note: 1 other staff member(s) at this station are locked/inactive and cannot handle bookings)"
+ *                 details:
+ *                   type: object
+ *                   properties:
+ *                     staffName: { type: string }
+ *                     oldStationName: { type: string }
+ *                     oldStationId: { type: string }
+ *                     newStationName: { type: string }
+ *                     newStationId: { type: string }
+ *                     bookingBatteriesCount: { type: number }
+ *                     remainingActiveStaffCount: { type: number }
+ *                     totalStaffCount: { type: number }
+ *                     lockedStaffCount: { type: number }
+ *                     reason: { type: string }
  *       401:
  *         description: Unauthorized
  *       404:
